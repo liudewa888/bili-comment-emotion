@@ -244,17 +244,26 @@
         }
         md += `---\n\n`;
       });
-      md += `# 注意\n\n- 评论格式\n\n\`\`\`md\n`;
+      md += `# 关键词\n\n`;
+      md += `氦气：华特、金宏、广钢、中船、气体\n`;
+      md += `锂矿：融捷、矿工、西藏矿业、中矿\n`;
+      md += `存储：澜起、通富、兆易、赵姨、长鑫、dml、德明\n`;
+      md += `商航：真雷、臻雷、六子、铖昌、卫星、航天\n`;
+      md += `AI医疗：华大、大华、迪安、基因\n`;
+      md += `半导体：中芯、东芯、乌鸦、天岳\n`;
+      md += `智驾：速腾、激光雷达、禾赛、地平线\n\n`;
+      md += `# 注意\n\n## 评论格式\n\n\`\`\`md\n`;
       md += `### 序号1. 用户名 [点赞数量 评论数量 分数权重]\n\n> 评论见时间 | 用户名IP属地\n\n评论内容\n\n`;
       md += `- 用户名: 子评论内容\n- 用户名: 子评论内容\n\n---\n\n### 序号2.\n\`\`\`\n\n`;
-      md += `- {'[微笑]'} 帖子和评论区中为B站表情包,对分析也重要\n\n`;
+      md += `## 表情包\n\n- {'[微笑]'} 帖子和评论区中为B站表情包,对分析也重要\n\n`;
+      md += `## 关键词格式\n\n\`\`\`md\n词：对应的多种近义词\n\`\`\`\n\n`;
       md += `# 分析任务\n\n`;
       md += `你是一个A股散户心理情绪观察舆情助手。请综合正文立场与评论区高热度反馈（按FCHI降序排列），输出【散户情绪阶段报告】。你的核心目标是识别当前市场处于情绪轮动链条的哪个位置，并给出对应的交易操作建议。\n\n`;
       md += `## 情绪轮动模型（建仓视角：底部→中途→顶部）\n\n`;
       md += `### 第一阶段：冰点（底部｜无人问津，适合买入/抄底）\n\n`;
       md += `- 核心心理：麻木、绝望、丧失信心\n`;
       md += `- 评论区特征：评论稀少或死气沉沉；大量求安慰/求按摩内容/诉苦；充斥销户、摆烂、躺平言论、爆仓、卖房、家人、量化、空仓、死抗、抄底、梭哈、加杠杆；对利好消息完全脱敏甚至解读为利空\n`;
-      md += `- B站典型语料："跌/亏麻/嘛了"、"抄底抄在半山腰"、"做家务"、"不玩了准备销户"、"再怎么反弹也是诱多"、"懒得看盘了"、"谁还敢进场"、"利好出尽就是利空"、"分析的再多都是跌"、"这市场已经彻底没救了"、"对不起家人"、"终于收盘了"、"*家跌停"、"保卫战"、"UP救我"、"被套了"、"头皮发麻"、"毁灭吧"、"狗庄"、"死磕"、"牛走了"、"老乡别走"、"事到如今"、"事已至此"、"绿的发慌"、"吃面"、"关灯吃面"、"牛还在吗"、"扛不住"\n\n`;
+      md += `- B站典型语料："跌/亏麻/嘛了"、"抄底抄在半山腰"、"做家务"、"不玩了准备销户"、"再怎么反弹也是诱多"、"懒得看盘了"、"谁还敢进场"、"利好出尽就是利空"、"分析的再多都是跌"、"这市场已经彻底没救了"、"对不起家人"、"终于收盘了"、"*家跌停"、"保卫战"、"UP救我"、"被套了"、"头皮发麻"、"毁灭吧"、"狗庄"、"死磕"、"牛走了"、"老乡别走"、"事到如今"、"事已至此"、"绿的发慌"、"吃面"、"关灯吃面"、"牛还在吗"、"扛不住"、"完啦"、"全完了"、"熔断"、"错杀"\n\n`;
       md += `### 第二阶段：观望（中途｜震荡拉锯，适合观望）\n\n`;
       md += `- 核心心理：怀疑、犹豫、摇摆不定\n`;
       md += `- 评论区特征：评论量逐步回升但分歧巨大；刚回本就急于跑路；频繁询问是反弹还是反转；想进场又怕追高\n`;
@@ -273,6 +282,8 @@
       md += `- 空洞表情刷屏：无具体论据的[打call][赞]且集中在低等级账号，视为水军或反串，不作为狂热依据。\n`;
       md += `- 楼中楼联动：主评表情积极但楼中楼出现≥3条反讽表情或反驳，以楼中楼共识为准，主评情绪强制降级。\n`;
       md += `- 语义冲突：文本与表情情绪相反时，优先以表情为准；连续重复相同表情≥3个，置信度下调0.3并标记异常\n\n`;
+      md += `## 关键词出现频率监控\n\n`;
+      md += `- 统计上面关键词和近义词出现的次数\n\n`;
       md += `## 操作建议映射\n\n`;
       md += `- 第一阶段（冰点）→ 抄底 / 分批建仓\n`;
       md += `- 第二阶段（观望）→ 观望 / 轻仓试探\n`;
@@ -282,7 +293,8 @@
       md += `仅返回以下JSON结构，不包含任何解释性文字、markdown标记或额外说明：\n\n`;
       md += `{\n"stage": "冰点|观望|沸腾|样本过少",\n"operation": "抄底|加仓|观望|减仓|清仓",\n`;
       md += `"confidence": 0.0至1.0之间的浮点数,\n"core_evidence": "≤200字的核心判定依据，引用最具代表性的评论关键词",\n`;
-      md += `"up_crowd_relation": "一致|弱背离|强背离",\n"risk_note": "水军干扰|反讽密集|样本过少|情绪极端化|null"\n}\n`;
+      md += `"up_crowd_relation": "一致|弱背离|强背离",\n"risk_note": "水军干扰|反讽密集|样本过少|情绪极端化|null",\n`;
+      md += `"keyword_stats": "氦气:N次; 锂矿:N次; 存储:N次; 商航:N次; AI医疗:N次; 半导体:N次; 智驾:N次"\n}\n`;
       return md;
     },
 
@@ -625,7 +637,7 @@
           // 超时：没有匹配的 fetch 被拦截
           staleCycles++;
           console.log("[自动加载] 等待fetch超时, stale:", staleCycles);
-          if (staleCycles >= 3) {
+          if (staleCycles >= 2) {
             console.log("%c[自动加载] 多次超时，停止", "color:#faad14");
             break;
           }
@@ -950,6 +962,26 @@
 <div style="font-size:12px;font-weight:600;color:#ff4d4f;margin-bottom:4px">❌ ${r._pfName} / ${r._model}</div>
 <div style="font-size:11px;color:#888">${r._error}</div></div>`;
       }
+      // 解析关键词次数，按次数降序排列
+      let kwHtml = "";
+      if (r.keyword_stats) {
+        const pairs = r.keyword_stats
+          .split(";")
+          .map((s) => {
+            const m = s.trim().match(/^(.+?):(\d+)次$/);
+            return m ? { name: m[1], count: parseInt(m[2], 10) } : null;
+          })
+          .filter(Boolean);
+        pairs.sort((a, b) => b.count - a.count);
+        if (pairs.length > 0) {
+          const total = pairs.reduce((s, p) => s + p.count, 0);
+          kwHtml = `<div class="bpp-result-row" style="flex-wrap:wrap;padding:8px 0;border: 1px solid #ccc;border-radius: 8px;margin-top: 8px;padding-left: 4px;">
+  <span class="bpp-result-label">关键词频率</span>
+  <span class="bpp-result-value" style="max-width:70%">${pairs.map((p) => `<span style="display:inline-block;margin:2px 4px;padding:1px 8px;border-radius:10px;font-size:11px;background:${p.count > total * 0.2 ? "#fff1f0" : p.count > 0 ? "#f6ffed" : "#f5f5f5"};color:${p.count > total * 0.2 ? "#ff4d4f" : p.count > 0 ? "#52c41a" : "#bbb"}">${p.name} ${p.count}</span>`).join("")}</span>
+</div>`;
+        }
+      }
+
       const sc = stageClassMap[r.stage] || "few";
       const cp = Math.round((r.confidence || 0) * 100);
       const cc = cp >= 70 ? "#52c41a" : cp >= 40 ? "#faad14" : "#ff4d4f";
@@ -961,7 +993,8 @@
 <div class="bpp-result-conf-bar"><div class="bpp-result-conf-fill" style="width:${cp}%;background:${cc}"></div></div>
 <div class="bpp-result-row"><span class="bpp-result-label">UP主与评论区关系</span><span class="bpp-result-value">${r.up_crowd_relation || "—"}</span></div>
 <div class="bpp-result-row"><span class="bpp-result-label">风险提示</span><span class="bpp-result-value" style="color:${r.risk_note && r.risk_note !== "null" ? "#ff4d4f" : "#52c41a"}">${r.risk_note && r.risk_note !== "null" ? r.risk_note : "无"}</span></div>
-<div class="bpp-result-evidence">${r.core_evidence || "无"}</div></div>`;
+<div class="bpp-result-evidence">${r.core_evidence || "无"}</div>
+${kwHtml}</div>`;
     };
 
     const showResults = (results, elapsed) => {
@@ -1233,25 +1266,49 @@ ${cards}
         transition: "transform 0.15s",
         lineHeight: "1",
       });
-      el.onmouseenter = () => { el.style.transform = "scale(1.15)"; };
-      el.onmouseleave = () => { el.style.transform = "scale(1)"; };
+      el.onmouseenter = () => {
+        el.style.transform = "scale(1.15)";
+      };
+      el.onmouseleave = () => {
+        el.style.transform = "scale(1)";
+      };
       return el;
     }
 
     // ⚙ 设置
-    const setBtn = _makeCircleBtn("bili-post-edit-btn", "配置帖子信息 & 大模型API", "⚙", "#888");
+    const setBtn = _makeCircleBtn(
+      "bili-post-edit-btn",
+      "配置帖子信息 & 大模型API",
+      "⚙",
+      "#888",
+    );
     setBtn.onclick = openPanel;
 
     // ▶ 自动加载
-    const autoLoadBtn = _makeCircleBtn("bili-auto-load-btn", "自动滚动加载评论", "▶", "#52c41a");
+    const autoLoadBtn = _makeCircleBtn(
+      "bili-auto-load-btn",
+      "自动滚动加载评论",
+      "▶",
+      "#52c41a",
+    );
     autoLoadBtn.style.fontSize = "13px";
 
     // 🤖 AI分析
-    const aiBtn = _makeCircleBtn("bili-ai-analyze-btn", "大模型 AI 分析评论情绪", "🤖", "#fa8c16");
+    const aiBtn = _makeCircleBtn(
+      "bili-ai-analyze-btn",
+      "大模型 AI 分析评论情绪",
+      "🤖",
+      "#fa8c16",
+    );
     aiBtn.onclick = doAiAnalyze;
 
     // 📋 复制
-    const copyBtn = _makeCircleBtn("bili-collect-btn", "复制提示词到剪贴板<br>右键：清空缓存", "📋", "#00aeec");
+    const copyBtn = _makeCircleBtn(
+      "bili-collect-btn",
+      "复制提示词到剪贴板<br>右键：清空缓存",
+      "📋",
+      "#00aeec",
+    );
     copyBtn.style.fontSize = "13px";
 
     // 进度条（自动加载时显示）
