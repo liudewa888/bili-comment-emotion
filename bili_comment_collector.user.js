@@ -126,6 +126,18 @@
     },
   };
 
+  /* ===== 自动滚动加载配置 ===== */
+  const autoScrollConfig = {
+    get targetCount() {
+      return GM_getValue("bili_auto_target", 200);
+    },
+    set targetCount(v) {
+      GM_setValue("bili_auto_target", v);
+    },
+  };
+
+  let _onReplyFetch = null; // 自动滚动引擎设置；fetch 拦截器调用
+
   /* ===== 评论缓存 ===== */
   const commentStore = {
     comments: [],
@@ -242,15 +254,15 @@
       md += `### 第一阶段：冰点（底部｜无人问津，适合买入/抄底）\n\n`;
       md += `- 核心心理：麻木、绝望、丧失信心\n`;
       md += `- 评论区特征：评论稀少或死气沉沉；大量求安慰/求按摩内容/诉苦；充斥销户、摆烂、躺平言论、爆仓、卖房、家人、量化、空仓、死抗、抄底、梭哈、加杠杆；对利好消息完全脱敏甚至解读为利空\n`;
-      md += `- B站典型语料："跌麻/嘛了"、"抄底抄在半山腰"、"做家务"、"不玩了准备销户"、"再怎么反弹也是诱多"、"懒得看盘了"、"谁还敢进场"、"利好出尽就是利空"、"分析的再多都是跌"、"这市场已经彻底没救了"、"对不起家人"、"终于收盘了"、"*家跌停"、"保卫战"、"UP救我"、"被套了"、"头皮发麻"、"毁灭吧"、"狗庄"、"死磕"、"牛走了"、"老乡别走"\n\n`;
+      md += `- B站典型语料："跌/亏麻/嘛了"、"抄底抄在半山腰"、"做家务"、"不玩了准备销户"、"再怎么反弹也是诱多"、"懒得看盘了"、"谁还敢进场"、"利好出尽就是利空"、"分析的再多都是跌"、"这市场已经彻底没救了"、"对不起家人"、"终于收盘了"、"*家跌停"、"保卫战"、"UP救我"、"被套了"、"头皮发麻"、"毁灭吧"、"狗庄"、"死磕"、"牛走了"、"老乡别走"、"事到如今"、"事已至此"、"绿的发慌"、"吃面"、"关灯吃面"、"牛还在吗"、"扛不住"\n\n`;
       md += `### 第二阶段：观望（中途｜震荡拉锯，适合观望）\n\n`;
       md += `- 核心心理：怀疑、犹豫、摇摆不定\n`;
       md += `- 评论区特征：评论量逐步回升但分歧巨大；刚回本就急于跑路；频繁询问是反弹还是反转；想进场又怕追高\n`;
       md += `- B站典型语料："反弹还是反转"、"不敢加仓怕冲高回落"、"涨这么多随时要回调"、"有点想进但怕追在半山腰"、"先观望确认趋势再说"、"垃圾盘面浪费时间"、"垃圾行情没意思"、"看盘不如出去旅游"、"半仓观望"\n\n`;
       md += `### 第三阶段：沸腾（顶部｜人声鼎沸，适合减仓/清仓）\n\n`;
       md += `- 核心心理：狂热、贪婪、亢奋\n`;
-      md += `- 评论区特征：评论刷屏爆满；大量晒收益/晒截图/晒消费/夸赞UP；低于8级账号密集涌入;新手求代码求带；询问目标点位；出现踏空/借钱/梭哈/卖房/开户/卸杠杆等言论\n`;
-      md += `- B站典型语料："还能买吗"、"家庭地位"、"开香槟"、"要消费"、"UP牛逼"、"膜拜UP"、"赢嘛/麻了"、"今天就这样吧"、"收盘吧"、"翻倍"、"爆赚"、"啥时间跑"、"头晕目眩"、"服了UP/佩服UP"、"牛回"、"又涨停了"、"恐高"\n\n`;
+      md += `- 评论区特征：评论刷屏爆满；大量晒收益/晒截图/晒消费/夸赞感谢UP；低于8级账号密集涌入;新手求代码求带；询问目标点位；出现踏空/借钱/梭哈/卖房/开户/卸杠杆等言论\n`;
+      md += `- B站典型语料："还能买吗"、"家庭地位"、"开香槟"、"要消费"、"UP牛逼"、"膜拜UP"、"赢嘛/麻了"、"今天就这样吧"、"收盘吧"、"翻倍"、"爆赚"、"啥时间跑"、"头晕目眩"、"服了UP/佩服UP"、"牛回"、"又涨停了"、"恐高"、"奖励"、"加蛋"、"绝了"、"yyds"、"手下我的膝盖"\n\n`;
       md += `## 分析规则\n\n### 内容\n\n`;
       md += `- UP主观点仅作参考锚点，当UP主立场与高热度评论共识严重背离时，以评论区共识为准（散户情绪指标反映的是群体心理而非个体观点）\n\n`;
       md += `### 表情包\n\n`;
@@ -326,12 +338,21 @@
           onload: (res) => {
             console.log(
               `%c📡 [${pf.name}] 响应 %cstatus: ${res.status}`,
-              "color:#888;", "color:#888;",
+              "color:#888;",
+              "color:#888;",
             );
             // console.log(`%c📡 [${pf.name}] 原始响应:%c`, "color:#888;", "color:#aaa;", res.responseText);
             try {
               if (!res.responseText || !res.responseText.trim()) {
-                return reject(new Error("[" + pf.name + "] API 返回空响应（status=" + res.status + "），请检查 API 地址"));
+                return reject(
+                  new Error(
+                    "[" +
+                      pf.name +
+                      "] API 返回空响应（status=" +
+                      res.status +
+                      "），请检查 API 地址",
+                  ),
+                );
               }
               const data = JSON.parse(res.responseText);
               if (data.error) {
@@ -450,11 +471,182 @@
             const j = JSON.parse(body);
             (j.data?.replies || []).forEach((r) => commentStore.addReply(r));
           } catch (_) {}
+          if (_onReplyFetch) _onReplyFetch();
         });
       }
       return resp;
     });
   };
+
+  /* ===== 自动滚动加载引擎 ===== */
+  function _scrollToTrigger() {
+    const scrollY = window.scrollY || window.pageYOffset;
+    const pageH = document.body.scrollHeight;
+    const winH = window.innerHeight;
+    console.log("[自动加载] scrollY:", scrollY, "pageH:", pageH, "winH:", winH);
+
+    // 如果已经接近页面底部，说明评论已全部加载
+    if (scrollY + winH >= pageH - 50) {
+      console.log("[自动加载] 已到页面底部");
+      return true;
+    }
+
+    // 每轮分多步滚到接近页面底部，模拟用户持续向下翻
+    // B站只有评论区底部 sentinel 进入视口才会触发请求
+    const targetY = pageH - winH - 100; // 留100px余量
+    const totalDist = targetY - scrollY;
+    if (totalDist <= 0) return true;
+
+    const steps = 5;
+    const perStep = Math.floor(totalDist / steps);
+    for (let i = 1; i <= steps; i++) {
+      window.dispatchEvent(
+        new WheelEvent("wheel", {
+          deltaY: perStep,
+          deltaMode: 0,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      window.scrollBy({ top: perStep, behavior: "auto" });
+    }
+    console.log(
+      "[自动加载] 滚了 " + steps + "×" + perStep + "px, 新 scrollY:",
+      window.scrollY,
+    );
+    return true;
+  }
+
+  function _waitForReply(timeoutMs) {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        _onReplyFetch = null;
+        resolve(false);
+      }, timeoutMs);
+      _onReplyFetch = () => {
+        clearTimeout(timer);
+        _onReplyFetch = null;
+        resolve(true);
+      };
+    });
+  }
+
+  function _updateAutoUI(targetCount) {
+    const s = commentStore.stats();
+    const pct =
+      targetCount > 0
+        ? Math.min(100, Math.round((s.mains / targetCount) * 100))
+        : 0;
+    const el = document.getElementById("bili-auto-progress-text");
+    if (el) el.textContent = s.mains + "/" + targetCount + " 条评论";
+    const bar = document.getElementById("bili-auto-progress-fill");
+    if (bar) bar.style.width = pct + "%";
+  }
+
+  const _autoState = { running: false, stop: false };
+
+  async function runAutoScroll(targetCount) {
+    console.log(
+      "[自动加载] runAutoScroll 被调用, target:",
+      targetCount,
+      "running:",
+      _autoState.running,
+    );
+    if (_autoState.running) {
+      console.log("[自动加载] 已在运行中，忽略重复调用");
+      return;
+    }
+    _autoState.running = true;
+    _autoState.stop = false;
+
+    const btn = document.getElementById("bili-auto-load-btn");
+    if (btn) {
+      btn.textContent = "⏹";
+      btn.style.color = "#ff4d4f";
+      btn.style.borderColor = "#ff4d4f";
+      btn.style.fontSize = "12px";
+    }
+
+    const prog = document.getElementById("bili-auto-progress");
+    if (prog) prog.style.display = "block";
+    _updateAutoUI(targetCount);
+
+    let staleCycles = 0;
+
+    try {
+      while (_autoState.running && !_autoState.stop) {
+        const mains = commentStore.mainCount();
+        if (mains >= targetCount) {
+          console.log(
+            "%c[自动加载] 目标已达成",
+            "color:#52c41a;font-weight:bold",
+          );
+          break;
+        }
+
+        const prevCount = commentStore.mainCount();
+
+        // 如果已到页面底部但没有评论，先滚回顶部再重新向下
+        const atBottom =
+          window.scrollY + window.innerHeight >=
+          document.body.scrollHeight - 50;
+        if (atBottom && prevCount === 0) {
+          console.log("[自动加载] 在页面底部但无评论，先滚回顶部");
+          window.scrollTo({ top: 0, behavior: "auto" });
+          await new Promise((r) => setTimeout(r, 800));
+        }
+
+        // 先设置钩子，再滚动，确保不会漏掉fetch响应
+        const waitPromise = _waitForReply(10000);
+
+        // 向下滚动触发加载
+        _scrollToTrigger();
+
+        if (_autoState.stop) break;
+        const got = await waitPromise;
+
+        const current = commentStore.mainCount();
+        const increased = current > prevCount;
+
+        if (increased) {
+          staleCycles = 0;
+          _updateAutoUI(targetCount);
+          // 加载成功后停顿1秒，避免请求过快
+          await new Promise((r) => setTimeout(r, 1000));
+        } else if (got) {
+          // 收到响应但没有新评论（已到底）
+          staleCycles++;
+          console.log("[自动加载] 响应到达但无新评论, stale:", staleCycles);
+          if (staleCycles >= 3) {
+            console.log("%c[自动加载] 评论已全部加载", "color:#888;");
+            break;
+          }
+        } else {
+          // 超时：没有匹配的 fetch 被拦截
+          staleCycles++;
+          console.log("[自动加载] 等待fetch超时, stale:", staleCycles);
+          if (staleCycles >= 3) {
+            console.log("%c[自动加载] 多次超时，停止", "color:#faad14");
+            break;
+          }
+        }
+      }
+    } finally {
+      _autoState.running = false;
+      _autoState.stop = false;
+      _updateAutoUI(targetCount);
+
+      if (btn) {
+        btn.textContent = "▶";
+        btn.style.color = "#52c41a";
+        btn.style.borderColor = "#e0e0e0";
+        btn.style.fontSize = "13px";
+      }
+      const progEnd = document.getElementById("bili-auto-progress");
+      if (progEnd) progEnd.style.display = "none";
+      console.log("%c[自动加载] 已停止", "color:#888;");
+    }
+  }
 
   /* ===== 样式 ===== */
   const injectStyles = () => {
@@ -565,6 +757,18 @@
     <div class="bpp-section-actions">
       <button class="bpp-btn-sm outline" id="bpp-clear-post">🗑 清空帖子</button>
       <button class="bpp-btn-sm primary" id="bpp-save-post">💾 保存帖子</button>
+    </div>
+  </div>
+
+  <!-- ⚡ 自动加载评论 -->
+  <div class="bpp-section">
+    <div class="bpp-section-title">⚡ 自动加载评论</div>
+    <div class="bpp-group">
+      <label>目标主评论数（每页约20条）</label>
+      <input id="bpp-target-count" type="number" min="20" step="20" placeholder="200">
+    </div>
+    <div class="bpp-section-actions">
+      <button class="bpp-btn-sm primary" id="bpp-save-target">💾 保存目标数量</button>
     </div>
   </div>
 
@@ -791,6 +995,7 @@ ${cards}
       const actives = llmConfig.actives;
       if (actives.length > 0) fillProfileForm(actives[0]);
       else clearProfileForm();
+      loadTargetInput();
       panel.classList.add("open");
     };
     const closePanel = () => panel.classList.remove("open");
@@ -891,6 +1096,22 @@ ${cards}
       console.log("%c✅ 全部API配置已清空", "color:#888;");
     };
 
+    // ⚡ 自动加载评论 — 保存目标数量
+    const loadTargetInput = () => {
+      document.getElementById("bpp-target-count").value =
+        autoScrollConfig.targetCount;
+    };
+    loadTargetInput();
+
+    document.getElementById("bpp-save-target").onclick = () => {
+      const val =
+        parseInt(document.getElementById("bpp-target-count").value, 10) || 200;
+      const target = Math.max(20, Math.ceil(val / 20) * 20);
+      autoScrollConfig.targetCount = target;
+      document.getElementById("bpp-target-count").value = target;
+      console.log("%c✅ 目标评论数已保存: " + target, "color:#52c41a;");
+    };
+
     // ========== 复制 & AI分析（供浮动按钮调用） ==========
     const doCopy = async () => {
       const manual = collectPostForm();
@@ -945,13 +1166,11 @@ ${cards}
       const startTime = Date.now();
       // 并行调用所有选中的模型
       const promises = profiles.map((pf) =>
-        commentStore
-          .analyzeWithLLM(pf)
-          .catch((e) => ({
-            _error: e.message,
-            _pfName: pf.name,
-            _model: pf.model,
-          })),
+        commentStore.analyzeWithLLM(pf).catch((e) => ({
+          _error: e.message,
+          _pfName: pf.name,
+          _model: pf.model,
+        })),
       );
       const results = await Promise.all(promises);
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
@@ -972,91 +1191,94 @@ ${cards}
       }
     };
 
-    // ── 浮动按钮（3个：复制 / AI分析 / 设置） ──
-    const makeFloatBtn = (id, html, title, bottom, borderColor, color) => {
+    // ── 浮动按钮盒子 ──
+    const btnBox = document.createElement("div");
+    btnBox.id = "bili-btn-box";
+    Object.assign(btnBox.style, {
+      position: "fixed",
+      right: "12px",
+      bottom: "80px",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: "10px",
+      zIndex: "99999",
+      background: "rgba(255,255,255,0.92)",
+      borderRadius: "20px",
+      padding: "10px 8px",
+      boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+      backdropFilter: "blur(8px)",
+    });
+
+    function _makeCircleBtn(id, title, html, color) {
       const el = document.createElement("div");
       el.id = id;
       el.title = title;
       el.innerHTML = html;
       Object.assign(el.style, {
-        position: "fixed",
-        right: "24px",
-        bottom: bottom,
-        minWidth: "44px",
-        height: "44px",
-        padding: "0 14px",
-        borderRadius: "22px",
+        width: "30px",
+        height: "30px",
+        borderRadius: "50%",
         background: "#fff",
-        border: `2px solid ${borderColor}`,
+        border: "1px solid #e0e0e0",
         color: color,
-        fontSize: "16px",
+        fontSize: "14px",
         fontWeight: "bold",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        gap: "6px",
         cursor: "pointer",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-        zIndex: "99999",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
         userSelect: "none",
         transition: "transform 0.15s",
         lineHeight: "1",
       });
-      el.onmouseenter = () => {
-        el.style.transform = "scale(1.1)";
-      };
-      el.onmouseleave = () => {
-        el.style.transform = "scale(1)";
-      };
+      el.onmouseenter = () => { el.style.transform = "scale(1.15)"; };
+      el.onmouseleave = () => { el.style.transform = "scale(1)"; };
       return el;
-    };
+    }
 
-    // 复制按钮
-    const copyBtn = makeFloatBtn(
-      "bili-collect-btn",
-      "",
-      "复制提示词到剪贴板<br>右键：清空缓存",
-      "180px",
-      "#00aeec",
-      "#00aeec",
-    );
-    // AI分析按钮
-    const aiBtn = makeFloatBtn(
-      "bili-ai-analyze-btn",
-      "🤖",
-      "大模型 AI 分析评论情绪",
-      "238px",
-      "#fa8c16",
-      "#fa8c16",
-    );
-    // 设置按钮
-    const setBtn = makeFloatBtn(
-      "bili-post-edit-btn",
-      "⚙",
-      "配置帖子信息 & 大模型API",
-      "238px",
-      "#e0e0e0",
-      "#888",
-    );
-    // 调整设置按钮位置 (再往上)
-    setBtn.style.bottom = "296px";
-    setBtn.style.minWidth = "28px";
-    setBtn.style.width = "28px";
-    setBtn.style.padding = "0";
-    setBtn.style.borderRadius = "50%";
-    setBtn.style.fontSize = "14px";
-    setBtn.style.boxShadow = "0 1px 4px rgba(0,0,0,0.08)";
-    setBtn.style.border = "1px solid #e0e0e0";
-
+    // ⚙ 设置
+    const setBtn = _makeCircleBtn("bili-post-edit-btn", "配置帖子信息 & 大模型API", "⚙", "#888");
     setBtn.onclick = openPanel;
+
+    // ▶ 自动加载
+    const autoLoadBtn = _makeCircleBtn("bili-auto-load-btn", "自动滚动加载评论", "▶", "#52c41a");
+    autoLoadBtn.style.fontSize = "13px";
+
+    // 🤖 AI分析
+    const aiBtn = _makeCircleBtn("bili-ai-analyze-btn", "大模型 AI 分析评论情绪", "🤖", "#fa8c16");
     aiBtn.onclick = doAiAnalyze;
 
-    document.body.appendChild(setBtn);
-    document.body.appendChild(aiBtn);
+    // 📋 复制
+    const copyBtn = _makeCircleBtn("bili-collect-btn", "复制提示词到剪贴板<br>右键：清空缓存", "📋", "#00aeec");
+    copyBtn.style.fontSize = "13px";
+
+    // 进度条（自动加载时显示）
+    const autoProgress = document.createElement("div");
+    autoProgress.id = "bili-auto-progress";
+    autoProgress.innerHTML = `
+      <div id="bili-auto-progress-text" style="font-size:10px;color:#888;margin-bottom:2px;text-align:center"></div>
+      <div style="height:2px;background:#eee;border-radius:1px;overflow:hidden;width:60px">
+        <div id="bili-auto-progress-fill" style="height:100%;background:#52c41a;border-radius:1px;transition:width .3s ease;width:0%"></div>
+      </div>
+    `;
+    autoProgress.style.display = "none";
+
+    // 评论数量标签
+    const countLabel = document.createElement("div");
+    countLabel.id = "bili-count-label";
+    Object.assign(countLabel.style, {
+      fontSize: "12px",
+      fontWeight: "bold",
+      color: "#fb7299",
+      textAlign: "center",
+    });
 
     const refreshBtn = () => {
       const n = commentStore.mainCount() || 0;
-      copyBtn.innerHTML = `📋<span style="color:#fb7299;font-size:16px">${n}</span>`;
+      countLabel.textContent = n;
+      countLabel.title = "已收集 " + n + " 条一级评论";
     };
     commentStore.onUpdate = refreshBtn;
     refreshBtn();
@@ -1074,8 +1296,12 @@ ${cards}
       }
       const ok = await doCopy();
       if (ok) {
-        copyBtn.innerHTML = `📋<span style="color:#52c41a;font-size:14px">已复制</span>`;
-        setTimeout(refreshBtn, 1200);
+        copyBtn.textContent = "✓";
+        copyBtn.style.color = "#52c41a";
+        setTimeout(() => {
+          copyBtn.textContent = "📋";
+          copyBtn.style.color = "#00aeec";
+        }, 1200);
       }
     };
     copyBtn.oncontextmenu = (e) => {
@@ -1084,7 +1310,43 @@ ${cards}
       document.getElementById("bpp-result")?.classList.remove("show");
       hideError();
     };
-    document.body.appendChild(copyBtn);
+
+    autoLoadBtn.onclick = async () => {
+      console.log("[自动加载] 按钮被点击, running:", _autoState.running);
+      if (_autoState.running) {
+        _autoState.stop = true;
+        console.log("[自动加载] 发送停止信号");
+        return;
+      }
+      const val =
+        parseInt(document.getElementById("bpp-target-count").value, 10) || 200;
+      const target = Math.max(20, Math.ceil(val / 20) * 20);
+      autoScrollConfig.targetCount = target;
+      document.getElementById("bpp-target-count").value = target;
+      try {
+        await runAutoScroll(target);
+      } catch (e) {
+        console.error("[自动加载] 异常:", e);
+        _autoState.running = false;
+        _autoState.stop = false;
+        if (autoLoadBtn) {
+          autoLoadBtn.textContent = "▶";
+          autoLoadBtn.style.color = "#52c41a";
+          autoLoadBtn.style.borderColor = "#e0e0e0";
+        }
+        const pe = document.getElementById("bili-auto-progress");
+        if (pe) pe.style.display = "none";
+      }
+    };
+
+    // 组装盒子：从上到下 设置 → 自动加载 → 进度条 → AI → 复制 → 数量
+    btnBox.appendChild(setBtn);
+    btnBox.appendChild(autoLoadBtn);
+    btnBox.appendChild(autoProgress);
+    btnBox.appendChild(aiBtn);
+    btnBox.appendChild(copyBtn);
+    btnBox.appendChild(countLabel);
+    document.body.appendChild(btnBox);
   };
 
   const init = () => {
