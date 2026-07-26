@@ -48,12 +48,18 @@
     else if (comment.upLike) upWeight = 1.8;
     function getLevelScope(l) {
       switch (true) {
-        case l < 5: return 0.1;
-        case l < 10: return 0.3;
-        case l < 15: return 0.5;
-        case l < 25: return 0.7;
-        case l >= 25: return 1;
-        default: return 0;
+        case l < 5:
+          return 0.1;
+        case l < 10:
+          return 0.3;
+        case l < 15:
+          return 0.5;
+        case l < 25:
+          return 0.7;
+        case l >= 25:
+          return 1;
+        default:
+          return 0;
       }
     }
     const fchi = baseScore * upWeight * getLevelScope(comment.userLevel);
@@ -62,33 +68,61 @@
 
   /* ===== LLM API 配置（多套profile持久化） ===== */
   // 存储结构：
-  //   bili_llm_profiles → JSON数组 [{name, apiKey, apiBase, model, temperature}, ...]
-  //   bili_llm_active   → 当前激活的profile名称
+  //   bili_llm_profiles    → JSON数组 [{name, apiKey, apiBase, model, temperature}, ...]
+  //   bili_llm_active_names → JSON数组 ["DeepSeek", "Kimi"]  多选激活
   const llmConfig = {
     get profiles() {
-      try { return JSON.parse(GM_getValue("bili_llm_profiles", "[]")); }
-      catch (e) { return []; }
+      try {
+        return JSON.parse(GM_getValue("bili_llm_profiles", "[]"));
+      } catch (e) {
+        return [];
+      }
     },
-    set profiles(v) { GM_setValue("bili_llm_profiles", JSON.stringify(v)); },
+    set profiles(v) {
+      GM_setValue("bili_llm_profiles", JSON.stringify(v));
+    },
 
-    get activeName() { return GM_getValue("bili_llm_active", ""); },
-    set activeName(v) { GM_setValue("bili_llm_active", v); },
+    get activeNames() {
+      try {
+        return JSON.parse(GM_getValue("bili_llm_active_names", "[]"));
+      } catch (e) {
+        return [];
+      }
+    },
+    set activeNames(v) {
+      GM_setValue("bili_llm_active_names", JSON.stringify(v));
+    },
 
-    // 获取当前激活的完整profile
+    // 所有激活的profile
+    get actives() {
+      const names = this.activeNames;
+      return this.profiles.filter((p) => names.includes(p.name));
+    },
+    // 首个激活（兼容旧逻辑）
     get active() {
-      const name = this.activeName;
-      return this.profiles.find((p) => p.name === name) || null;
+      return this.actives[0] || null;
     },
 
-    // 便捷属性（从active profile读取）
-    get apiKey() { return this.active?.apiKey || ""; },
-    get apiBase() { return this.active?.apiBase || ""; },
-    get model() { return this.active?.model || ""; },
-    get temperature() { const t = this.active?.temperature; return t != null ? t : 1; },
+    // 便捷属性（从首个active读取）
+    get apiKey() {
+      return this.active?.apiKey || "";
+    },
+    get apiBase() {
+      return this.active?.apiBase || "";
+    },
+    get model() {
+      return this.active?.model || "";
+    },
+    get temperature() {
+      const t = this.active?.temperature;
+      return t != null ? t : 1;
+    },
 
     get isConfigured() {
-      const a = this.active;
-      return !!(a && a.apiKey && a.apiBase && a.model);
+      return (
+        this.actives.length > 0 &&
+        this.actives.every((a) => a.apiKey && a.apiBase && a.model)
+      );
     },
   };
 
@@ -112,7 +146,8 @@
       if (this.seenIds.has(rpid)) return 0;
       this.seenIds.add(rpid);
       const main = {
-        type: "main", rpid,
+        type: "main",
+        rpid,
         user: r.member?.uname || "匿名",
         userLevel: r.member?.level_info?.current_level || 0,
         content: r.content.message || "",
@@ -133,11 +168,15 @@
           if (!srpid || this.seenIds.has(srpid)) return;
           this.seenIds.add(srpid);
           this.comments.push({
-            type: "sub", rpid: srpid, parentRpid: rpid,
+            type: "sub",
+            rpid: srpid,
+            parentRpid: rpid,
             user: sr.member?.uname || "匿名",
             content: sr.content.message || "",
-            likes: sr.like || 0, replyCount: 0,
-            time: _formatTime(sr.ctime), timestamp: sr.ctime,
+            likes: sr.like || 0,
+            replyCount: 0,
+            time: _formatTime(sr.ctime),
+            timestamp: sr.ctime,
           });
           added++;
         });
@@ -149,7 +188,11 @@
     stats() {
       const mains = this.comments.filter((c) => c.type === "main");
       const subs = this.comments.filter((c) => c.type === "sub");
-      return { total: this.comments.length, mains: mains.length, subs: subs.length };
+      return {
+        total: this.comments.length,
+        mains: mains.length,
+        subs: subs.length,
+      };
     },
 
     toMarkdown() {
@@ -167,7 +210,8 @@
           const s = opus.stats || {};
           md += `【效果】点赞数量: ${s.like ?? 0};收藏数量: ${s.favorite ?? 0};转发数量: ${s.forward ?? 0};评论数量: ${s.comment ?? 0};投币数量: ${s.coin ?? 0}\n`;
           md += `【UP主】${opus.up_master || ""}\n`;
-          if (opus.content) md += `\n## 帖子内容\n\n---\n\n${opus.content}\n\n---\n`;
+          if (opus.content)
+            md += `\n## 帖子内容\n\n---\n\n${opus.content}\n\n---\n`;
           md += `\n`;
         }
       } catch (_) {}
@@ -181,7 +225,9 @@
         md += `### ${idx + 1}. ${m.user} [🔥${m.likes} 💬${m.replyCount} 📊${m.scope}]\n`;
         md += `> ${m.time} | IP属地：${m.ipAddress || "未知"}\n\n${m.content}\n\n`;
         if (subsOfThis.length > 0) {
-          subsOfThis.forEach((s) => { md += `- ${s.user}: ${s.content} (👍${s.likes})\n`; });
+          subsOfThis.forEach((s) => {
+            md += `- ${s.user}: ${s.content} (👍${s.likes})\n`;
+          });
           md += `\n`;
         }
         md += `---\n\n`;
@@ -244,66 +290,89 @@
       return true;
     },
 
-    analyzeWithLLM() {
+    /** 调用单个大模型，pf: {name, apiKey, apiBase, model, temperature} */
+    analyzeWithLLM(pf) {
       const prompt = this.toMarkdown();
+      const temp = pf.temperature != null ? pf.temperature : 1;
       return new Promise((resolve, reject) => {
-        if (!llmConfig.isConfigured) {
-          return reject(new Error("请先添加 API 配置并选中一个激活"));
-        }
-        const apiUrl = llmConfig.apiBase;
-        console.log(`%c🚀 AI分析请求 %c→ ${apiUrl} %c| model: ${llmConfig.model} temp: ${llmConfig.temperature}`,
-          "color:#00aeec;font-weight:bold;", "color:#888;", "color:#888;");
+        console.log(
+          `%c🚀 AI分析 [${pf.name}] %c→ ${pf.apiBase} %c| ${pf.model} temp:${temp}`,
+          "color:#fa8c16;font-weight:bold;",
+          "color:#888;",
+          "color:#888;",
+        );
 
         GM_xmlhttpRequest({
-          method: "POST", url: apiUrl,
+          method: "POST",
+          url: pf.apiBase,
           headers: {
             "Content-Type": "application/json",
-            Authorization: "Bearer " + llmConfig.apiKey,
+            Authorization: "Bearer " + pf.apiKey,
           },
           data: JSON.stringify({
-            model: llmConfig.model,
+            model: pf.model,
+            // result_format: "message",
             messages: [
-              { role: "system", content: "你是一个A股散户心理情绪观察舆情助手。请严格按照JSON格式返回分析结果，不要包含markdown代码块标记。" },
+              {
+                role: "system",
+                content:
+                  "你是一个A股散户心理情绪观察舆情助手。请严格按照JSON格式返回分析结果，不要包含markdown代码块标记。",
+              },
               { role: "user", content: prompt },
             ],
-            temperature: llmConfig.temperature,
+            temperature: temp,
           }),
-          timeout: 120000,
+          timeout: 1200000,
           onload: (res) => {
-            console.log(`%c📡 API响应 %cstatus: ${res.status}`,
-              "color:#888;", "color:#888;");
+            console.log(
+              `%c📡 [${pf.name}] 响应 %cstatus: ${res.status}`,
+              "color:#888;", "color:#888;",
+            );
+            // console.log(`%c📡 [${pf.name}] 原始响应:%c`, "color:#888;", "color:#aaa;", res.responseText);
             try {
+              if (!res.responseText || !res.responseText.trim()) {
+                return reject(new Error("[" + pf.name + "] API 返回空响应（status=" + res.status + "），请检查 API 地址"));
+              }
               const data = JSON.parse(res.responseText);
               if (data.error) {
                 const msg = data.error.message || JSON.stringify(data.error);
-                return reject(new Error("API 返回错误: " + msg));
+                return reject(
+                  new Error("[" + pf.name + "] API 返回错误: " + msg),
+                );
               }
               const content = data.choices?.[0]?.message?.content;
-              if (!content) return reject(new Error("API 返回内容为空（status=" + res.status + "）"));
+              if (!content)
+                return reject(
+                  new Error(
+                    "[" +
+                      pf.name +
+                      "] API 返回内容为空（status=" +
+                      res.status +
+                      "）",
+                  ),
+                );
               let jsonStr = content.trim();
               const m = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
               if (m) jsonStr = m[1].trim();
               const jm = jsonStr.match(/\{[\s\S]*\}/);
-              if (!jm) return reject(new Error("未能从响应中解析JSON，原始返回前200字:\n" + content.slice(0, 200)));
+              if (!jm)
+                return reject(
+                  new Error("[" + pf.name + "] 未能从响应中解析JSON"),
+                );
               const result = JSON.parse(jm[0]);
-              if (!result.stage && !result.operation) return reject(new Error("返回的JSON缺少必要字段"));
-              this.aiResult = result;
+              if (!result.stage && !result.operation)
+                return reject(new Error("[" + pf.name + "] 返回缺少必要字段"));
+              result._pfName = pf.name;
+              result._model = pf.model;
               resolve(result);
             } catch (e) {
-              // 区分网络JSON解析错误 vs 逻辑错误
-              if (e.message.startsWith("API") || e.message.startsWith("未能") || e.message.startsWith("返回的JSON")) {
-                reject(e);
-              } else {
-                reject(new Error("响应解析失败（status=" + res.status + "）: " + e.message
-                  + "\n原始内容: " + (res.responseText || "").slice(0, 200)));
-              }
+              reject(new Error("[" + pf.name + "] 响应解析失败: " + e.message));
             }
           },
-          onerror: (err) => {
-            console.error("AI API 网络错误:", err);
-            reject(new Error("网络请求失败，请检查 API 地址是否正确: " + apiUrl));
-          },
-          ontimeout: () => reject(new Error("请求超时（120s）: " + apiUrl)),
+          onerror: () =>
+            reject(new Error("[" + pf.name + "] 网络请求失败: " + pf.apiBase)),
+          ontimeout: () =>
+            reject(new Error("[" + pf.name + "] 请求超时（20min）")),
         });
       });
     },
@@ -329,22 +398,35 @@
     if (contentMod?.paragraphs) {
       content = contentMod.paragraphs
         .filter((p) => p.para_type === 1 && p.text?.nodes)
-        .map((p) => p.text.nodes.map((node) => node.word?.words || node.rich?.orig_text || "").join(""))
+        .map((p) =>
+          p.text.nodes
+            .map((node) => node.word?.words || node.rich?.orig_text || "")
+            .join(""),
+        )
         .join("\n");
     }
     const images = [];
     if (contentMod?.paragraphs) {
-      contentMod.paragraphs.filter((p) => p.para_type === 2 && p.pic?.pics).forEach((p) => {
-        p.pic.pics.forEach((pic) => { if (pic.url) images.push(pic.url.replace(/^http:/, "https:")); });
-      });
+      contentMod.paragraphs
+        .filter((p) => p.para_type === 2 && p.pic?.pics)
+        .forEach((p) => {
+          p.pic.pics.forEach((pic) => {
+            if (pic.url) images.push(pic.url.replace(/^http:/, "https:"));
+          });
+        });
     }
     return {
-      title: state.detail.basic?.title || "", content, images,
-      up_master: authorMod?.name || "", up_mid: authorMod?.mid || 0,
+      title: state.detail.basic?.title || "",
+      content,
+      images,
+      up_master: authorMod?.name || "",
+      up_mid: authorMod?.mid || 0,
       post_time: authorMod?.pub_time || "",
       stats: {
-        like: statMod?.like?.count ?? 0, favorite: statMod?.favorite?.count ?? 0,
-        forward: statMod?.forward?.count ?? 0, comment: statMod?.comment?.count ?? 0,
+        like: statMod?.like?.count ?? 0,
+        favorite: statMod?.favorite?.count ?? 0,
+        forward: statMod?.forward?.count ?? 0,
+        comment: statMod?.comment?.count ?? 0,
         coin: statMod?.coin?.count ?? 0,
       },
     };
@@ -352,12 +434,14 @@
 
   /* ===== fetch 劫持 ===== */
   // 用 unsafeWindow 才能劫持到页面的真实 fetch（GM沙箱下 window 是隔离的）
-  const pageFetch = (typeof unsafeWindow !== "undefined" ? unsafeWindow : window).fetch;
+  const pageFetch = (
+    typeof unsafeWindow !== "undefined" ? unsafeWindow : window
+  ).fetch;
   const pageWin = typeof unsafeWindow !== "undefined" ? unsafeWindow : window;
   pageWin.fetch = function (...args) {
     // B站可能传 string 或 Request 对象，统一提取 URL 字符串
     const arg0 = args[0];
-    const url = typeof arg0 === "string" ? arg0 : (arg0?.url || "");
+    const url = typeof arg0 === "string" ? arg0 : arg0?.url || "";
     return pageFetch.apply(this, args).then((resp) => {
       if (url.includes("/x/v2/reply") && url.includes("mode=2")) {
         const clone = resp.clone();
@@ -413,6 +497,8 @@
 
 .bpp-result{display:none}.bpp-result.show{display:block}
 .bpp-result-card{background:#f8fafb;border-radius:8px;padding:14px;border:1px solid #e8ecf0}
+.bpp-result-title{font-size:13px;color:#333;font-weight:600;margin-bottom:4px;line-height:1.4}
+.bpp-result-summary{font-size:11px;color:#999;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #f0f0f0}
 .bpp-result-stage{display:inline-block;padding:3px 12px;border-radius:20px;font-size:14px;font-weight:bold;margin-bottom:10px}
 .bpp-result-stage.ice{background:#e6f7ff;color:#1890ff}
 .bpp-result-stage.wait{background:#fffbe6;color:#faad14}
@@ -486,7 +572,7 @@
   <div class="bpp-section">
     <div class="bpp-section-title">🤖 大模型 API 配置</div>
     <div class="bpp-group">
-      <label>已保存的 API（点击选中激活，× 删除）</label>
+      <label>已保存的 API（点击多选，× 删除）</label>
       <div class="bpp-profile-list" id="bpp-profile-list"></div>
     </div>
     <div class="bpp-group"><label>名称</label><input id="bpp-pf-name" placeholder="如：DeepSeek / OpenAI / 硅基流动"></div>
@@ -495,7 +581,8 @@
     <div class="hint" style="margin-top:2px">Kimi: https://api.moonshot.cn/v1/chat/completions</div>
     <div class="hint">DeepSeek: https://api.deepseek.com/chat/completions</div>
     <div class="hint">OpenAI: https://api.openai.com/v1/chat/completions</div>
-    <div class="hint" style="margin-bottom:8px">硅基流动: https://api.siliconflow.cn/v1/chat/completions</div>
+    <div class="hint">硅基流动: https://api.siliconflow.cn/v1/chat/completions</div>
+    <div class="hint" style="margin-bottom:8px">阿里百炼(Qwen): https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions</div>
     <div class="bpp-group"><label>模型</label><input id="bpp-pf-model" placeholder="kimi-k2.6"></div>
     <div class="bpp-group"><label>Temperature</label><input id="bpp-pf-temp" type="number" min="0" max="1" step="0.1" placeholder="1"></div>
     <div class="hint">0~1，越大越随机（默认1）</div>
@@ -519,32 +606,45 @@
     resultPanel.innerHTML = `
 <div class="bar-header">🤖 AI 分析结果<span class="bar-close">&times;</span></div>
 <div class="bar-body">
-  <div class="bpp-loading" id="bpp-loading"><div class="bpp-loading-spinner"></div><div>大模型分析中，请稍候...</div></div>
+  <div class="bpp-loading" id="bpp-loading"><div class="bpp-loading-spinner"></div><div id="bpp-loading-text">大模型分析中，请稍候...</div></div>
   <div class="bpp-error" id="bpp-error"></div>
   <div class="bpp-result" id="bpp-result"><div class="bpp-result-card" id="bpp-result-card"></div></div>
 </div>
 `;
     document.body.appendChild(resultPanel);
 
-    const openResultPanel = () => { resultPanel.classList.add("open"); };
-    const closeResultPanel = () => { resultPanel.classList.remove("open"); };
+    const openResultPanel = () => {
+      resultPanel.classList.add("open");
+    };
+    const closeResultPanel = () => {
+      resultPanel.classList.remove("open");
+    };
     resultPanel.querySelector(".bar-close").onclick = closeResultPanel;
 
-    // ========== profile 标签渲染 ==========
+    // ========== profile 标签渲染（多选） ==========
     const renderProfiles = () => {
       const container = document.getElementById("bpp-profile-list");
       const profiles = llmConfig.profiles;
-      const active = llmConfig.activeName;
+      const actives = llmConfig.activeNames;
       container.innerHTML = "";
       profiles.forEach((p) => {
+        const isActive = actives.includes(p.name);
         const chip = document.createElement("span");
-        chip.className = "bpp-profile-chip" + (p.name === active ? " active" : "");
-        chip.title = `${p.model}\n${p.apiBase}`;
+        chip.className = "bpp-profile-chip" + (isActive ? " active" : "");
+        chip.title =
+          `${p.model}\n${p.apiBase}\n` +
+          (isActive ? "已选中（点击取消）" : "点击选中");
         chip.innerHTML = `${p.name}<span class="pf-del" data-name="${p.name}">&times;</span>`;
         chip.addEventListener("click", (e) => {
           if (e.target.classList.contains("pf-del")) return;
-          // 点击 = 激活并回填表单
-          llmConfig.activeName = p.name;
+          // 点击 = 切换选中
+          let names = llmConfig.activeNames;
+          if (names.includes(p.name)) {
+            names = names.filter((n) => n !== p.name);
+          } else {
+            names = [...names, p.name];
+          }
+          llmConfig.activeNames = names;
           renderProfiles();
           fillProfileForm(p);
         });
@@ -557,14 +657,12 @@
           const name = del.dataset.name;
           let profiles = llmConfig.profiles.filter((p) => p.name !== name);
           llmConfig.profiles = profiles;
-          if (llmConfig.activeName === name) {
-            llmConfig.activeName = profiles.length > 0 ? profiles[0].name : "";
-          }
+          let names = llmConfig.activeNames.filter((n) => n !== name);
+          llmConfig.activeNames = names;
           renderProfiles();
           clearProfileForm();
-          // 如果删的是当前激活的，自动选中第一个
-          if (llmConfig.activeName) {
-            const first = profiles.find((p) => p.name === llmConfig.activeName);
+          if (names.length > 0) {
+            const first = profiles.find((p) => p.name === names[0]);
             if (first) fillProfileForm(first);
           }
         });
@@ -576,7 +674,8 @@
       document.getElementById("bpp-pf-key").value = p.apiKey || "";
       document.getElementById("bpp-pf-base").value = p.apiBase || "";
       document.getElementById("bpp-pf-model").value = p.model || "";
-      document.getElementById("bpp-pf-temp").value = p.temperature != null ? p.temperature : 1;
+      document.getElementById("bpp-pf-temp").value =
+        p.temperature != null ? p.temperature : 1;
     };
     const clearProfileForm = () => {
       document.getElementById("bpp-pf-name").value = "";
@@ -613,7 +712,8 @@
     const collectPostForm = () => ({
       title: document.getElementById("bpp-title").value.trim(),
       content: document.getElementById("bpp-content").value.trim(),
-      post_time: document.getElementById("bpp-time").value.trim() || _formatPostTime(),
+      post_time:
+        document.getElementById("bpp-time").value.trim() || _formatPostTime(),
       up_master: document.getElementById("bpp-up").value.trim(),
       stats: {
         like: parseInt(document.getElementById("bpp-like").value, 10) || 0,
@@ -630,35 +730,67 @@
       el.classList.add("show");
       document.getElementById("bpp-loading").classList.remove("show");
     };
-    const hideError = () => document.getElementById("bpp-error").classList.remove("show");
+    const hideError = () =>
+      document.getElementById("bpp-error").classList.remove("show");
 
-    const showResult = (result) => {
-      const card = document.getElementById("bpp-result-card");
-      const stageClassMap = { "冰点": "ice", "观望": "wait", "沸腾": "boil", "样本过少": "few" };
-      const sc = stageClassMap[result.stage] || "few";
-      const cp = Math.round((result.confidence || 0) * 100);
+    // 渲染单个模型结果卡片
+    const renderOneCard = (r) => {
+      const stageClassMap = {
+        冰点: "ice",
+        观望: "wait",
+        沸腾: "boil",
+        样本过少: "few",
+      };
+      if (r._error) {
+        return `<div class="bpp-result-card" style="border-left:3px solid #ff4d4f;margin-bottom:10px">
+<div style="font-size:12px;font-weight:600;color:#ff4d4f;margin-bottom:4px">❌ ${r._pfName} / ${r._model}</div>
+<div style="font-size:11px;color:#888">${r._error}</div></div>`;
+      }
+      const sc = stageClassMap[r.stage] || "few";
+      const cp = Math.round((r.confidence || 0) * 100);
       const cc = cp >= 70 ? "#52c41a" : cp >= 40 ? "#faad14" : "#ff4d4f";
-      card.innerHTML = `
-<div class="bpp-result-stage ${sc}">📊 ${result.stage || "未知"}</div>
-<div class="bpp-result-row"><span class="bpp-result-label">操作建议</span><span class="bpp-result-value" style="font-size:14px;font-weight:bold;color:#00aeec">${result.operation || "—"}</span></div>
+      return `<div class="bpp-result-card" style="margin-bottom:10px">
+<div style="font-size:12px;font-weight:600;color:#fa8c16;margin-bottom:6px">🤖 ${r._pfName} / ${r._model}</div>
+<div class="bpp-result-stage ${sc}">📊 ${r.stage || "未知"}</div>
+<div class="bpp-result-row"><span class="bpp-result-label">操作建议</span><span class="bpp-result-value" style="font-size:14px;font-weight:bold;color:#00aeec">${r.operation || "—"}</span></div>
 <div class="bpp-result-row"><span class="bpp-result-label">置信度</span><span class="bpp-result-value">${cp}%</span></div>
 <div class="bpp-result-conf-bar"><div class="bpp-result-conf-fill" style="width:${cp}%;background:${cc}"></div></div>
-<div class="bpp-result-row"><span class="bpp-result-label">UP主与评论区关系</span><span class="bpp-result-value">${result.up_crowd_relation || "—"}</span></div>
-<div class="bpp-result-row"><span class="bpp-result-label">风险提示</span><span class="bpp-result-value" style="color:${result.risk_note && result.risk_note !== 'null' ? '#ff4d4f' : '#52c41a'}">${result.risk_note && result.risk_note !== "null" ? result.risk_note : "无"}</span></div>
-<div class="bpp-result-evidence">${result.core_evidence || "无"}</div>
-<div class="bpp-result-meta">API: ${llmConfig.activeName} (${llmConfig.model}) | ${_formatPostTime()}</div>`;
-      document.getElementById("bpp-result").classList.add("show");
+<div class="bpp-result-row"><span class="bpp-result-label">UP主与评论区关系</span><span class="bpp-result-value">${r.up_crowd_relation || "—"}</span></div>
+<div class="bpp-result-row"><span class="bpp-result-label">风险提示</span><span class="bpp-result-value" style="color:${r.risk_note && r.risk_note !== "null" ? "#ff4d4f" : "#52c41a"}">${r.risk_note && r.risk_note !== "null" ? r.risk_note : "无"}</span></div>
+<div class="bpp-result-evidence">${r.core_evidence || "无"}</div></div>`;
+    };
+
+    const showResults = (results, elapsed) => {
+      const opus = getOpusData() || commentStore.manualPostData;
+      const title = opus?.title || "未知主题";
+      const s = commentStore.stats();
+      const cards = results.map(renderOneCard).join("");
+      const container = document.getElementById("bpp-result");
+      container.innerHTML = `
+<div class="bpp-result-title">📌 ${title}</div>
+<div class="bpp-result-summary">已分析 ${s.mains} 条主评论 + ${s.subs} 条子评论，共 ${s.total} 条 | 耗时 ${elapsed}s</div>
+${cards}
+<div class="bpp-result-meta">${_formatPostTime()}</div>`;
+      container.classList.add("show");
       document.getElementById("bpp-loading").classList.remove("show");
-      console.log("%c🤖 AI分析结果 %c(可与手动分析对比)", "font-size:16px;font-weight:bold;color:#00aeec;", "color:#888;");
-      console.log(JSON.stringify(result, null, 2));
+      console.log(
+        "%c🤖 多模型分析结果 %c(可与手动分析对比)",
+        "font-size:16px;font-weight:bold;color:#00aeec;",
+        "color:#888;",
+      );
+      results.forEach((r) => {
+        console.log(`--- ${r._pfName} / ${r._model} ---`);
+        console.log(JSON.stringify(r, null, 2));
+      });
     };
 
     // ========== 事件 ==========
     const openPanel = () => {
       loadPostForm();
       renderProfiles();
-      const active = llmConfig.active;
-      if (active) fillProfileForm(active); else clearProfileForm();
+      const actives = llmConfig.actives;
+      if (actives.length > 0) fillProfileForm(actives[0]);
+      else clearProfileForm();
       panel.classList.add("open");
     };
     const closePanel = () => panel.classList.remove("open");
@@ -666,8 +798,19 @@
 
     // 📝 清空帖子
     document.getElementById("bpp-clear-post").onclick = () => {
-      ["bpp-title","bpp-time","bpp-up","bpp-content","bpp-like","bpp-fav","bpp-fwd","bpp-cmt","bpp-coin"]
-        .forEach((id) => { document.getElementById(id).value = ""; });
+      [
+        "bpp-title",
+        "bpp-time",
+        "bpp-up",
+        "bpp-content",
+        "bpp-like",
+        "bpp-fav",
+        "bpp-fwd",
+        "bpp-cmt",
+        "bpp-coin",
+      ].forEach((id) => {
+        document.getElementById(id).value = "";
+      });
       commentStore.manualPostData = null;
       console.log("%c✅ 帖子信息已清空", "color:#888;");
     };
@@ -682,27 +825,40 @@
       const pf = collectProfileForm();
       const cfgErr = (msg) => {
         const el = document.getElementById("bpp-config-error");
-        el.textContent = "❌ " + msg; el.classList.add("show");
+        el.textContent = "❌ " + msg;
+        el.classList.add("show");
       };
       document.getElementById("bpp-config-error").classList.remove("show");
-      if (!pf.name) { cfgErr("请输入API名称"); return; }
-      if (!pf.apiKey) { cfgErr("请输入API Key"); return; }
-      if (!pf.apiBase) { cfgErr("请输入API地址"); return; }
-      if (!pf.model) { cfgErr("请输入模型名"); return; }
+      if (!pf.name) {
+        cfgErr("请输入API名称");
+        return;
+      }
+      if (!pf.apiKey) {
+        cfgErr("请输入API Key");
+        return;
+      }
+      if (!pf.apiBase) {
+        cfgErr("请输入API地址");
+        return;
+      }
+      if (!pf.model) {
+        cfgErr("请输入模型名");
+        return;
+      }
 
       let profiles = llmConfig.profiles;
       const idx = profiles.findIndex((p) => p.name === pf.name);
       if (idx >= 0) {
         profiles[idx] = pf; // 更新同名profile
       } else {
-        profiles.push(pf);  // 新增
+        profiles.push(pf); // 新增
       }
       llmConfig.profiles = profiles;
-      llmConfig.activeName = pf.name; // 保存后自动激活
+      llmConfig.activeNames = [...new Set([...llmConfig.activeNames, pf.name])]; // 自动加入选中
       renderProfiles();
       fillProfileForm(pf);
       document.getElementById("bpp-config-error").classList.remove("show");
-      console.log(`%c✅ API "${pf.name}" 已保存并激活`, "color:#52c41a;");
+      console.log(`%c✅ API "${pf.name}" 已保存并加入选中`, "color:#52c41a;");
     };
 
     // 🤖 删除当前表单对应的profile
@@ -711,13 +867,12 @@
       if (!name) return;
       let profiles = llmConfig.profiles.filter((p) => p.name !== name);
       llmConfig.profiles = profiles;
-      if (llmConfig.activeName === name) {
-        llmConfig.activeName = profiles.length > 0 ? profiles[0].name : "";
-      }
+      llmConfig.activeNames = llmConfig.activeNames.filter((n) => n !== name);
       renderProfiles();
       clearProfileForm();
-      if (llmConfig.activeName) {
-        const first = profiles.find((p) => p.name === llmConfig.activeName);
+      const actives = llmConfig.activeNames;
+      if (actives.length > 0) {
+        const first = profiles.find((p) => p.name === actives[0]);
         if (first) fillProfileForm(first);
       }
       document.getElementById("bpp-result").classList.remove("show");
@@ -728,7 +883,7 @@
     // 🤖 清空全部
     document.getElementById("bpp-clear-config").onclick = () => {
       llmConfig.profiles = [];
-      llmConfig.activeName = "";
+      llmConfig.activeNames = [];
       renderProfiles();
       clearProfileForm();
       document.getElementById("bpp-result").classList.remove("show");
@@ -747,9 +902,15 @@
       }
       try {
         await commentStore.copyToClipboard();
-        console.log(`%c✅ 已复制 ${s.total} 条评论为 Markdown（可粘贴到任意大模型手动对比）`, "color:#52c41a");
+        console.log(
+          `%c✅ 已复制 ${s.total} 条评论为 Markdown（可粘贴到任意大模型手动对比）`,
+          "color:#52c41a",
+        );
         return true;
-      } catch (e) { console.log("复制失败: ", e); return false; }
+      } catch (e) {
+        console.log("复制失败: ", e);
+        return false;
+      }
     };
 
     const doAiAnalyze = async () => {
@@ -761,34 +922,53 @@
         showError("暂无评论数据，请先滚动加载评论");
         return;
       }
-      if (!llmConfig.isConfigured) {
+      const profiles = llmConfig.actives;
+      if (profiles.length === 0) {
         openPanel();
-        showError("请先添加并激活一套 API 配置");
+        showError("请先选中至少一套 API 配置");
         return;
       }
 
-      openResultPanel(); // 打开独立结果面板
+      openResultPanel();
       hideError();
+      const modelList = profiles.map((p) => p.name + "/" + p.model).join(", ");
+      document.getElementById("bpp-loading-text").textContent =
+        `正在使用 ${profiles.length} 个模型同时分析: ${modelList}`;
       document.getElementById("bpp-result").classList.remove("show");
       document.getElementById("bpp-loading").classList.add("show");
       const aiFloatBtn = document.getElementById("bili-ai-analyze-btn");
-      if (aiFloatBtn) { aiFloatBtn.style.pointerEvents = "none"; aiFloatBtn.style.opacity = "0.6"; }
+      if (aiFloatBtn) {
+        aiFloatBtn.style.pointerEvents = "none";
+        aiFloatBtn.style.opacity = "0.6";
+      }
 
       const startTime = Date.now();
-      try {
-        const result = await commentStore.analyzeWithLLM();
-        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-        showResult(result);
-        console.log(`%c✅ AI分析完成 %c(${elapsed}s) %c| ${llmConfig.activeName} / ${llmConfig.model}`,
-          "color:#52c41a;font-weight:bold;", "color:#888;", "color:#888;");
-      } catch (e) {
-        showError(e.message);
-        console.error("AI分析失败:", e.message);
-      } finally {
-        if (aiFloatBtn) { aiFloatBtn.style.pointerEvents = ""; aiFloatBtn.style.opacity = ""; }
-        if (!document.getElementById("bpp-result").classList.contains("show")) {
-          document.getElementById("bpp-loading").classList.remove("show");
-        }
+      // 并行调用所有选中的模型
+      const promises = profiles.map((pf) =>
+        commentStore
+          .analyzeWithLLM(pf)
+          .catch((e) => ({
+            _error: e.message,
+            _pfName: pf.name,
+            _model: pf.model,
+          })),
+      );
+      const results = await Promise.all(promises);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+      showResults(results, elapsed);
+      const ok = results.filter((r) => !r._error).length;
+      const fail = results.filter((r) => r._error).length;
+      console.log(
+        `%c✅ 全部完成 %c(${elapsed}s) %c| 成功:${ok} 失败:${fail}`,
+        "color:#52c41a;font-weight:bold;",
+        "color:#888;",
+        "color:#888;",
+      );
+
+      if (aiFloatBtn) {
+        aiFloatBtn.style.pointerEvents = "";
+        aiFloatBtn.style.opacity = "";
       }
     };
 
@@ -799,25 +979,65 @@
       el.title = title;
       el.innerHTML = html;
       Object.assign(el.style, {
-        position: "fixed", right: "24px", bottom: bottom, minWidth: "44px", height: "44px",
-        padding: "0 14px", borderRadius: "22px", background: "#fff",
-        border: `2px solid ${borderColor}`, color: color,
-        fontSize: "16px", fontWeight: "bold", display: "flex", alignItems: "center",
-        justifyContent: "center", gap: "6px", cursor: "pointer",
+        position: "fixed",
+        right: "24px",
+        bottom: bottom,
+        minWidth: "44px",
+        height: "44px",
+        padding: "0 14px",
+        borderRadius: "22px",
+        background: "#fff",
+        border: `2px solid ${borderColor}`,
+        color: color,
+        fontSize: "16px",
+        fontWeight: "bold",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "6px",
+        cursor: "pointer",
         boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-        zIndex: "99999", userSelect: "none", transition: "transform 0.15s", lineHeight: "1",
+        zIndex: "99999",
+        userSelect: "none",
+        transition: "transform 0.15s",
+        lineHeight: "1",
       });
-      el.onmouseenter = () => { el.style.transform = "scale(1.1)"; };
-      el.onmouseleave = () => { el.style.transform = "scale(1)"; };
+      el.onmouseenter = () => {
+        el.style.transform = "scale(1.1)";
+      };
+      el.onmouseleave = () => {
+        el.style.transform = "scale(1)";
+      };
       return el;
     };
 
     // 复制按钮
-    const copyBtn = makeFloatBtn("bili-collect-btn", "", "复制提示词到剪贴板<br>右键：清空缓存", "180px", "#00aeec", "#00aeec");
+    const copyBtn = makeFloatBtn(
+      "bili-collect-btn",
+      "",
+      "复制提示词到剪贴板<br>右键：清空缓存",
+      "180px",
+      "#00aeec",
+      "#00aeec",
+    );
     // AI分析按钮
-    const aiBtn = makeFloatBtn("bili-ai-analyze-btn", "🤖", "大模型 AI 分析评论情绪", "238px", "#fa8c16", "#fa8c16");
+    const aiBtn = makeFloatBtn(
+      "bili-ai-analyze-btn",
+      "🤖",
+      "大模型 AI 分析评论情绪",
+      "238px",
+      "#fa8c16",
+      "#fa8c16",
+    );
     // 设置按钮
-    const setBtn = makeFloatBtn("bili-post-edit-btn", "⚙", "配置帖子信息 & 大模型API", "238px", "#e0e0e0", "#888");
+    const setBtn = makeFloatBtn(
+      "bili-post-edit-btn",
+      "⚙",
+      "配置帖子信息 & 大模型API",
+      "238px",
+      "#e0e0e0",
+      "#888",
+    );
     // 调整设置按钮位置 (再往上)
     setBtn.style.bottom = "296px";
     setBtn.style.minWidth = "28px";
@@ -843,9 +1063,15 @@
 
     copyBtn.onclick = async (e) => {
       if (commentStore.mainCount() === 0) return;
-      if (e.shiftKey) { openPanel(); return; }
+      if (e.shiftKey) {
+        openPanel();
+        return;
+      }
       const auto = getOpusData();
-      if (!auto && !commentStore.manualPostData) { openPanel(); return; }
+      if (!auto && !commentStore.manualPostData) {
+        openPanel();
+        return;
+      }
       const ok = await doCopy();
       if (ok) {
         copyBtn.innerHTML = `📋<span style="color:#52c41a;font-size:14px">已复制</span>`;
@@ -863,9 +1089,15 @@
 
   const init = () => {
     if (document.body) injectButton();
-    else new MutationObserver(() => { if (document.body) injectButton(); })
-      .observe(document.documentElement, { childList: true });
+    else
+      new MutationObserver(() => {
+        if (document.body) injectButton();
+      }).observe(document.documentElement, { childList: true });
   };
-  if (document.readyState === "complete" || document.readyState === "interactive") init();
+  if (
+    document.readyState === "complete" ||
+    document.readyState === "interactive"
+  )
+    init();
   else document.addEventListener("DOMContentLoaded", init);
 })();
