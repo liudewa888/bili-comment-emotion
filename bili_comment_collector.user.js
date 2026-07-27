@@ -267,11 +267,11 @@
       md += `### 第二阶段：观望（中途｜震荡拉锯，适合观望）\n\n`;
       md += `- 核心心理：怀疑、犹豫、摇摆不定\n`;
       md += `- 评论区特征：评论量逐步回升但分歧巨大；刚回本就急于跑路；频繁询问是反弹还是反转；想进场又怕追高\n`;
-      md += `- B站典型语料："反弹还是反转"、"不敢加仓怕冲高回落"、"涨这么多随时要回调"、"有点想进但怕追在半山腰"、"先观望确认趋势再说"、"垃圾盘面浪费时间"、"垃圾行情没意思"、"看盘不如出去旅游"、"半仓观望"\n\n`;
+      md += `- B站典型语料："反弹还是反转"、"不敢加仓怕冲高回落"、"涨这么多随时要回调"、"有点想进但怕追在半山腰"、"先观望确认趋势再说"、"垃圾盘面浪费时间"、"垃圾行情没意思"、"看盘不如出去旅游"、"半仓观望"、"盘面真没意思"\n\n`;
       md += `### 第三阶段：沸腾（顶部｜人声鼎沸，适合减仓/清仓）\n\n`;
       md += `- 核心心理：狂热、贪婪、亢奋\n`;
       md += `- 评论区特征：评论刷屏爆满；大量晒收益/晒截图/晒消费/夸赞感谢UP；低于8级账号密集涌入;新手求代码求带；询问目标点位；出现踏空/借钱/梭哈/卖房/开户/卸杠杆等言论\n`;
-      md += `- B站典型语料："还能买吗"、"家庭地位"、"开香槟"、"要消费"、"UP牛逼"、"膜拜UP"、"赢嘛/麻了"、"今天就这样吧"、"收盘吧"、"翻倍"、"爆赚"、"啥时间跑"、"头晕目眩"、"服了UP/佩服UP"、"牛回"、"又涨停了"、"恐高"、"奖励"、"加蛋"、"绝了"、"yyds"、"手下我的膝盖"\n\n`;
+      md += `- B站典型语料："还能买吗"、"家庭地位"、"开香槟"、"要消费"、"UP牛逼"、"膜拜UP"、"赢嘛/麻了"、"今天就这样吧"、"收盘吧"、"翻倍"、"爆赚"、"啥时间跑"、"头晕目眩"、"服了UP/佩服UP"、"牛回"、"又涨停了"、"恐高"、"奖励"、"加蛋"、"绝了"、"yyds"、"收下我的膝盖"\n\n`;
       md += `## 分析规则\n\n### 内容\n\n`;
       md += `- UP主观点仅作参考锚点，当UP主立场与高热度评论共识严重背离时，以评论区共识为准（散户情绪指标反映的是群体心理而非个体观点）\n\n`;
       md += `### 表情包\n\n`;
@@ -283,7 +283,7 @@
       md += `- 楼中楼联动：主评表情积极但楼中楼出现≥3条反讽表情或反驳，以楼中楼共识为准，主评情绪强制降级。\n`;
       md += `- 语义冲突：文本与表情情绪相反时，优先以表情为准；连续重复相同表情≥3个，置信度下调0.3并标记异常\n\n`;
       md += `## 关键词出现频率监控\n\n`;
-      md += `- 统计上面关键词和近义词出现的次数\n\n`;
+      md += `- 统计上面关键词（及对应近义词）出现的次数\n- 同一条评论有多次关键词（及对应近义词）出现算作1次\n\n`;
       md += `## 操作建议映射\n\n`;
       md += `- 第一阶段（冰点）→ 抄底 / 分批建仓\n`;
       md += `- 第二阶段（观望）→ 观望 / 轻仓试探\n`;
@@ -294,7 +294,7 @@
       md += `{\n"stage": "冰点|观望|沸腾|样本过少",\n"operation": "抄底|加仓|观望|减仓|清仓",\n`;
       md += `"confidence": 0.0至1.0之间的浮点数,\n"core_evidence": "≤200字的核心判定依据，引用最具代表性的评论关键词",\n`;
       md += `"up_crowd_relation": "一致|弱背离|强背离",\n"risk_note": "水军干扰|反讽密集|样本过少|情绪极端化|null",\n`;
-      md += `"keyword_stats": "氦气:N次; 锂矿:N次; 存储:N次; 商航:N次; AI医疗:N次; 半导体:N次; 智驾:N次"\n}\n`;
+      md += `"keyword_stats": "氦气:N次; 锂矿:N次; 存储:N次; 商航:N次; AI医疗:N次; 半导体:N次; 智驾:N次；光刻胶:N次"\n}\n`;
       return md;
     },
 
@@ -977,7 +977,7 @@
           const total = pairs.reduce((s, p) => s + p.count, 0);
           kwHtml = `<div class="bpp-result-row" style="flex-wrap:wrap;padding:8px 0;border: 1px solid #ccc;border-radius: 8px;margin-top: 8px;padding-left: 4px;">
   <span class="bpp-result-label">关键词频率</span>
-  <span class="bpp-result-value" style="max-width:70%">${pairs.map((p) => `<span style="display:inline-block;margin:2px 4px;padding:1px 8px;border-radius:10px;font-size:11px;background:${p.count > total * 0.2 ? "#fff1f0" : p.count > 0 ? "#f6ffed" : "#f5f5f5"};color:${p.count > total * 0.2 ? "#ff4d4f" : p.count > 0 ? "#52c41a" : "#bbb"}">${p.name} ${p.count}</span>`).join("")}</span>
+  <span class="bpp-result-value" style="max-width:70%;text-align:left;">${pairs.map((p) => `<span style="display:inline-block;margin:2px 4px;padding:1px 8px;border-radius:10px;font-size:11px;background:${p.count > total * 0.2 ? "#fff1f0" : p.count > 0 ? "#f6ffed" : "#f5f5f5"};color:${p.count > total * 0.2 ? "#ff4d4f" : p.count > 0 ? "#52c41a" : "#bbb"}">${p.name} ${p.count}</span>`).join("")}</span>
 </div>`;
         }
       }
