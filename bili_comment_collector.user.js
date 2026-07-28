@@ -66,6 +66,39 @@
     return Math.round(fchi * 100) / 100;
   }
 
+  /* ===== 导入/导出：XOR + Base64 加解密 ===== */
+  function simpleHash(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) - hash + str.charCodeAt(i);
+      hash |= 0;
+    }
+    return String(Math.abs(hash)).repeat(4);
+  }
+
+  function xorEncrypt(text, password) {
+    const key = simpleHash(password);
+    let result = "";
+    for (let i = 0; i < text.length; i++) {
+      result += String.fromCharCode(
+        text.charCodeAt(i) ^ key.charCodeAt(i % key.length),
+      );
+    }
+    return btoa(unescape(encodeURIComponent(result)));
+  }
+
+  function xorDecrypt(encrypted, password) {
+    const key = simpleHash(password);
+    const raw = decodeURIComponent(escape(atob(encrypted)));
+    let result = "";
+    for (let i = 0; i < raw.length; i++) {
+      result += String.fromCharCode(
+        raw.charCodeAt(i) ^ key.charCodeAt(i % key.length),
+      );
+    }
+    return result;
+  }
+
   /* ===== LLM API 配置（多套profile持久化） ===== */
   // 存储结构：
   //   bili_llm_profiles    → JSON数组 [{name, apiKey, apiBase, model, temperature}, ...]
@@ -213,20 +246,25 @@
       const path = location.pathname;
       const now = _formatPostTime();
       let md = "";
-      try {
-        const opus = getOpusData() || this.manualPostData;
-        if (opus) {
-          md += `# 帖子\n\n## 帖子数据\n\n`;
-          md += `【标题】${opus.title || ""}\n`;
-          md += `【发布时间】${_formatPostTime(opus.post_time)}\n`;
-          const s = opus.stats || {};
-          md += `【效果】点赞数量: ${s.like ?? 0};收藏数量: ${s.favorite ?? 0};转发数量: ${s.forward ?? 0};评论数量: ${s.comment ?? 0};投币数量: ${s.coin ?? 0}\n`;
-          md += `【UP主】${opus.up_master || ""}\n`;
-          if (opus.content)
-            md += `\n## 帖子内容\n\n---\n\n${opus.content}\n\n---\n`;
-          md += `\n`;
-        }
-      } catch (_) {}
+      const d = getOpusData() || this.manualPostData || {};
+
+      // # 帖子
+      const hasPost = d.title || d.content;
+      if (hasPost) {
+        md += `# 帖子\n\n## 帖子数据\n\n`;
+        md += `【标题】${d.title || ""}\n`;
+        md += `【发布时间】${_formatPostTime(d.post_time)}\n`;
+        const s = d.stats || {};
+        md += `【当前帖子数据】点赞数量: ${s.like ?? 0};评论数量: ${s.comment ?? 0};收藏数量: ${s.favorite ?? 0};转发数量: ${s.forward ?? 0};投币数量: ${s.coin ?? 0}\n`;
+        const ac = d.avgComment ?? 200;
+        const al = d.avgLike ?? 200;
+        md += `【历史帖子数据】过去10条平均评论量(C̄_base)：${ac}；过去10条平均点赞量(L̄_base)：${al}\n`;
+        md += `【UP主】${d.up_master || ""}\n`;
+        if (d.content) md += `\n## 帖子内容\n\n---\n\n${d.content}\n\n---\n`;
+        md += `\n`;
+      }
+
+      // # 评论区
       md += `# 评论区\n\n## 评论区数据\n\n`;
       md += `> 共 **${mains.length}** 条主评论，**${subs.length}** 条子评论\n`;
       md += `> 视频: \`${path}\` | 抓取时间: ${now}\n`;
@@ -244,36 +282,71 @@
         }
         md += `---\n\n`;
       });
-      md += `# 关键词\n\n`;
-      md += `氦气：华特、金宏、广钢、中船、气体\n`;
-      md += `锂矿：融捷、矿工、西藏矿业、中矿\n`;
-      md += `存储：澜起、通富、兆易、赵姨、长鑫、dml、德明\n`;
-      md += `商航：真雷、臻雷、六子、铖昌、卫星、航天\n`;
-      md += `AI医疗：华大、大华、迪安、基因\n`;
-      md += `半导体：中芯、东芯、乌鸦、天岳\n`;
-      md += `智驾：速腾、激光雷达、禾赛、地平线\n\n`;
-      md += `# 注意\n\n## 评论格式\n\n\`\`\`md\n`;
-      md += `### 序号1. 用户名 [点赞数量 评论数量 分数权重]\n\n> 评论见时间 | 用户名IP属地\n\n评论内容\n\n`;
-      md += `- 用户名: 子评论内容\n- 用户名: 子评论内容\n\n---\n\n### 序号2.\n\`\`\`\n\n`;
-      md += `## 表情包\n\n- {'[微笑]'} 帖子和评论区中为B站表情包,对分析也重要\n\n`;
-      md += `## 关键词格式\n\n\`\`\`md\n词：对应的多种近义词\n\`\`\`\n\n`;
-      md += `# 分析任务\n\n`;
-      md += `你是一个A股散户心理情绪观察舆情助手。请综合正文立场与评论区高热度反馈（按FCHI降序排列），输出【散户情绪阶段报告】。你的核心目标是识别当前市场处于情绪轮动链条的哪个位置，并给出对应的交易操作建议。\n\n`;
-      md += `## 情绪轮动模型（建仓视角：底部→中途→顶部）\n\n`;
-      md += `### 第一阶段：冰点（底部｜无人问津，适合买入/抄底）\n\n`;
+
+      // # 情绪轮动模型
+      md += `# 情绪轮动模型\n\n`;
+      md += `## 冰点（底部｜无人问津，适合买入/抄底）\n\n`;
       md += `- 核心心理：麻木、绝望、丧失信心\n`;
       md += `- 评论区特征：评论稀少或死气沉沉；大量求安慰/求按摩内容/诉苦；充斥销户、摆烂、躺平言论、爆仓、卖房、家人、量化、空仓、死抗、抄底、梭哈、加杠杆；对利好消息完全脱敏甚至解读为利空\n`;
-      md += `- B站典型语料："跌/亏麻/嘛了"、"抄底抄在半山腰"、"做家务"、"不玩了准备销户"、"再怎么反弹也是诱多"、"懒得看盘了"、"谁还敢进场"、"利好出尽就是利空"、"分析的再多都是跌"、"这市场已经彻底没救了"、"对不起家人"、"终于收盘了"、"*家跌停"、"保卫战"、"UP救我"、"被套了"、"头皮发麻"、"毁灭吧"、"狗庄"、"死磕"、"牛走了"、"老乡别走"、"事到如今"、"事已至此"、"绿的发慌"、"吃面"、"关灯吃面"、"牛还在吗"、"扛不住"、"完啦"、"全完了"、"熔断"、"错杀"\n\n`;
-      md += `### 第二阶段：观望（中途｜震荡拉锯，适合观望）\n\n`;
+      md += `- B站典型语料："跌/亏麻/嘛了"、"抄底抄在半山腰"、"做家务"、"不玩了准备销户"、"再怎么反弹也是诱多"、"懒得看盘了"、"谁还敢进场"、"利好出尽就是利空"、"分析的再多都是跌"、"这市场已经彻底没救了"、"对不起家人"、"终于收盘了"、"*家跌停"、"保卫战"、"UP救我"、"被套了"、"头皮发麻"、"毁灭吧"、"狗庄"、"死磕"、"牛走了"、"老乡别走"、"事到如今"、"事已至此"、"绿的发慌"、"吃面"、"关灯吃面"、"牛还在吗"、"扛不住"、"完啦"、"全完了"、"熔断"、"错杀"、"崩了"、"股灾"、"至暗时刻"\n\n`;
+      md += `## 观望（中途｜震荡拉锯，适合观望）\n\n`;
       md += `- 核心心理：怀疑、犹豫、摇摆不定\n`;
       md += `- 评论区特征：评论量逐步回升但分歧巨大；刚回本就急于跑路；频繁询问是反弹还是反转；想进场又怕追高\n`;
       md += `- B站典型语料："反弹还是反转"、"不敢加仓怕冲高回落"、"涨这么多随时要回调"、"有点想进但怕追在半山腰"、"先观望确认趋势再说"、"垃圾盘面浪费时间"、"垃圾行情没意思"、"看盘不如出去旅游"、"半仓观望"、"盘面真没意思"\n\n`;
-      md += `### 第三阶段：沸腾（顶部｜人声鼎沸，适合减仓/清仓）\n\n`;
+      md += `## 沸腾（顶部｜人声鼎沸，适合减仓/清仓）\n\n`;
       md += `- 核心心理：狂热、贪婪、亢奋\n`;
       md += `- 评论区特征：评论刷屏爆满；大量晒收益/晒截图/晒消费/夸赞感谢UP；低于8级账号密集涌入;新手求代码求带；询问目标点位；出现踏空/借钱/梭哈/卖房/开户/卸杠杆等言论\n`;
-      md += `- B站典型语料："还能买吗"、"家庭地位"、"开香槟"、"要消费"、"UP牛逼"、"膜拜UP"、"赢嘛/麻了"、"今天就这样吧"、"收盘吧"、"翻倍"、"爆赚"、"啥时间跑"、"头晕目眩"、"服了UP/佩服UP"、"牛回"、"又涨停了"、"恐高"、"奖励"、"加蛋"、"绝了"、"yyds"、"收下我的膝盖"\n\n`;
-      md += `## 分析规则\n\n### 内容\n\n`;
-      md += `- UP主观点仅作参考锚点，当UP主立场与高热度评论共识严重背离时，以评论区共识为准（散户情绪指标反映的是群体心理而非个体观点）\n\n`;
+      md += `- B站典型语料："还能买吗"、"家庭地位"、"开香槟"、"要消费"、"UP牛逼"、"膜拜UP"、"赢嘛/麻了"、"今天就这样吧"、"收盘吧"、"翻倍"、"爆赚"、"啥时间跑"、"头晕目眩"、"服了UP/佩服UP"、"牛回"、"又涨停了"、"恐高"、"奖励"、"加蛋"、"绝了"、"yyds"、"收下我的膝盖"、"打爆"、"空狗"、"空头"\n\n`;
+
+      // # 关键词
+      md += `# 关键词(股票模块)\n\n`;
+      md += `氦气：华特、金宏、广钢、中船、气体、特子、HT、ht、688268\n`;
+      md += `锂矿：融捷、矿工、西藏矿业、中矿、xzky、rjgf\n`;
+      md += `光刻胶：八亿、bysk、688181、gkj、688727、hkxc、恒坤、603125、cqkj、常青\n`;
+      md += `存储：澜起、通富、兆易、赵姨、长鑫、lqkj、zycx\n`;
+      md += `商航：真雷、臻雷、六子、铖昌、卫星、航天、雷子、stzl、688270、001270、cckj\n`;
+      md += `AI医疗：华大、大华、迪安、基因、成都先导、hdzz、688114\n`;
+      md += `半导体：中芯、东芯、乌鸦、天岳、dxgf\n`;
+      md += `智驾：速腾、激光雷达、禾赛、地平线、stjc\n\n`;
+
+      // # 口号词
+      md += `# 口号词\n\n`;
+      md += `忠诚：葱橙\n`;
+      md += `数钱：shu钱、下周数钱\n\n`;
+
+      // # 注意
+      md += `# 注意\n\n`;
+      md += `## 评论格式\n\n\`\`\`md\n`;
+      md += `### 序号1. 用户名 [点赞数量 评论数量 分数权重]\n\n> 评论时间 | 用户名IP属地\n\n评论内容\n\n`;
+      md += `- 用户名: 子评论内容\n- 用户名: 子评论内容\n  ...\n\n---\n\n### 序号2.\n\`\`\`\n\n`;
+      md += `## 表情包\n\n- {'[微笑]'} 帖子和评论区中为B站表情包,对分析也重要\n\n`;
+      md += `## 关键词格式\n\n\`\`\`md\n词：对应的多种近义词\n\`\`\`\n\n`;
+      md += `## 口号词\n\n- UP和粉丝公认的口号，鼓励打气\n\n`;
+
+      // # 分析任务
+      md += `# 分析任务\n\n`;
+      md += `## 分析要求\n\n`;
+      md += `- 你是一个A股散户心理情绪观察舆情助手。请综合正文立场与评论区高热度反馈，输出【散户情绪报告】\n\n`;
+      md += `## 打分规则\n\n`;
+      md += `1. 核心公式\n\n`;
+      md += `\`\`\`text\nScope = Clip( [ (Wi×Si + We×Se + Wk×Sk + Wq×Sq) × Cemoji ] + Ofloor, 0, 100 )\n\`\`\`\n\n`;
+      md += `2. 参数速查表\n`;
+      md += `   | 符号 | 含义 | 权重 | 计算逻辑 |\n`;
+      md += `   | :--- | :--- | :--- | :--- |\n`;
+      md += `   | X̄_base | 动态基准线 | - | 过去10条帖子均值：C̄_base=平均评论量，L̄_base=平均点赞量 |\n`;
+      md += `   | Si | 互动偏离得分 | Wi=0.30 | Rc=当前评论量/C̄_base；Rl=当前点赞量/L̄_base<br>Si=Clip((Rc×0.5+Rl×0.5)×50, 0, 100) |\n`;
+      md += `   | Se | 情绪词频得分 | We=0.25 | Nice/Nwait/Nboil为三阶段词频<br>Se=(Nboil×100+Nwait×50+Nice×0)/(Nice+Nwait+Nboil+1)×100 |\n`;
+      md += `   | Sk | 关键词热度得分 | Wk=0.20 | Nkey=8大板块关键词总命中次数<br>Sk=Clip(Nkey×5, 0, 100) |\n`;
+      md += `   | Sq | 质量信号得分 | Wq=0.25 | Sq=Pgeo×40+Plvl×30+Plen×30<br>Pgeo=北上广深/江浙沪IP占比<br>Plvl=20级及以上账号占比<br>Plen=原创感悟(非新闻)>40字占比 |\n`;
+      md += `   | Cemoji | 表情包修正系数 | 乘法因子 | 默认1.0；[doge]+沸腾词→×0.6；[吃瓜]/[哈欠]+观望词→×0.9；[微笑]/[呵呵]+冰点词→×0.8；楼中楼≥3反讽→对应Se×0.2；多系数取最小值 |\n`;
+      md += `   | Ofloor | 噪音地板偏移 | 加法项 | Nice>0且Nboil>0→+10；Nkey=0且Rc<0.3→-10；否则→0 |\n\n`;
+      md += `3. 执行约束\n`;
+      md += `   基准线前置：C̄_base L̄_base 当前评论量 当前点赞量 均来自 帖子数据【当前帖子数据】【历史帖子数据】\n`;
+      md += `   词频原子性：同一条评论中同一关键词多次出现仅计1次；情绪词与板块关键词独立计数\n`;
+      md += `   质量信号判定：Plen 统计时必须排除新闻搬运/资讯摘要类内容，仅计入带个人判断的原创感悟\n`;
+      md += `   权重恒定：Wi+We+Wk+Wq=1.0\n`;
+      md += `   除零保护：分母为0时对应子项取中性值50\n\n`;
+      md += `## 分析规则\n\n`;
       md += `### 表情包\n\n`;
       md += `- [doge]/[狗头]：搭配赞美或极端口号时，视为绝望期反讽或怀疑期自嘲，严禁归入狂热期。仅在有具体数据论证时才可能为中性。\n`;
       md += `- [吃瓜]/[瓜子]：代表观望、质疑或看戏，对应怀疑犹豫期，绝非认同或狂热信号。\n`;
@@ -282,19 +355,17 @@
       md += `- 空洞表情刷屏：无具体论据的[打call][赞]且集中在低等级账号，视为水军或反串，不作为狂热依据。\n`;
       md += `- 楼中楼联动：主评表情积极但楼中楼出现≥3条反讽表情或反驳，以楼中楼共识为准，主评情绪强制降级。\n`;
       md += `- 语义冲突：文本与表情情绪相反时，优先以表情为准；连续重复相同表情≥3个，置信度下调0.3并标记异常\n\n`;
-      md += `## 关键词出现频率监控\n\n`;
-      md += `- 统计上面关键词（及对应近义词）出现的次数\n- 同一条评论有多次关键词（及对应近义词）出现算作1次\n\n`;
-      md += `## 操作建议映射\n\n`;
-      md += `- 第一阶段（冰点）→ 抄底 / 分批建仓\n`;
-      md += `- 第二阶段（观望）→ 观望 / 轻仓试探\n`;
-      md += `- 第三阶段（沸腾）→ 减仓 / 分批卖出\n`;
-      md += `- 样本过少 → 观望（禁止给出方向性建议）\n\n`;
-      md += `## 输出格式\n\n`;
+      md += `### 关键词出现频率监控\n\n`;
+      md += `- 统计上面关键词（及对应近义词）出现的次数\n`;
+      md += `- 同一条评论有多次关键词（及对应近义词）出现算作1次\n\n`;
+      md += `# 输出格式\n\n`;
       md += `仅返回以下JSON结构，不包含任何解释性文字、markdown标记或额外说明：\n\n`;
-      md += `{\n"stage": "冰点|观望|沸腾|样本过少",\n"operation": "抄底|加仓|观望|减仓|清仓",\n`;
-      md += `"confidence": 0.0至1.0之间的浮点数,\n"core_evidence": "≤200字的核心判定依据，引用最具代表性的评论关键词",\n`;
-      md += `"up_crowd_relation": "一致|弱背离|强背离",\n"risk_note": "水军干扰|反讽密集|样本过少|情绪极端化|null",\n`;
-      md += `"keyword_stats": "氦气:N次; 锂矿:N次; 存储:N次; 商航:N次; AI医疗:N次; 半导体:N次; 智驾:N次；光刻胶:N次"\n}\n`;
+      md += `{\n`;
+      md += `"scope": 0~100（出自打分规则）,\n`;
+      md += `"core_evidence": "≤300字的核心判定依据，引用最代表性的评论的关键词",\n`;
+      md += `"risk_note": "水军干扰|反讽密集|样本过少|情绪极端化|null",\n`;
+      md += `"keyword_stats": "氦气:N次; 锂矿:N次; 存储:N次; 商航:N次; AI医疗:N次; 半导体:N次; 智驾:N次；光刻胶:N次"\n`;
+      md += `}\n`;
       return md;
     },
 
@@ -393,7 +464,7 @@
                   new Error("[" + pf.name + "] 未能从响应中解析JSON"),
                 );
               const result = JSON.parse(jm[0]);
-              if (!result.stage && !result.operation)
+              if (result.scope == null && !result.core_evidence)
                 return reject(new Error("[" + pf.name + "] 返回缺少必要字段"));
               result._pfName = pf.name;
               result._model = pf.model;
@@ -609,7 +680,7 @@
         }
 
         // 先设置钩子，再滚动，确保不会漏掉fetch响应
-        const waitPromise = _waitForReply(10000);
+        const waitPromise = _waitForReply(4000);
 
         // 向下滚动触发加载
         _scrollToTrigger();
@@ -623,14 +694,14 @@
         if (increased) {
           staleCycles = 0;
           _updateAutoUI(targetCount);
-          // 加载成功后停顿1秒，避免请求过快
+          // 加载成功后短暂停顿，避免请求过快
           await new Promise((r) => setTimeout(r, 1000));
         } else if (got) {
           // 收到响应但没有新评论（已到底）
           staleCycles++;
           console.log("[自动加载] 响应到达但无新评论, stale:", staleCycles);
-          if (staleCycles >= 3) {
-            console.log("%c[自动加载] 评论已全部加载", "color:#888;");
+          if (staleCycles >= 2) {
+            console.log("%c[自动加载] 无新数据，评论已全部加载", "color:#888;");
             break;
           }
         } else {
@@ -765,6 +836,14 @@
         <div><input id="bpp-coin" placeholder="投币" type="number"></div>
       </div>
     </div>
+    <div class="bpp-group">
+      <label>历史帖子数据（过去10条均值）</label>
+      <div class="bpp-stats-row">
+        <div><input id="bpp-avg-cmt" placeholder="平均评论量" type="number" value="200"></div>
+        <div><input id="bpp-avg-like" placeholder="平均点赞量" type="number" value="200"></div>
+      </div>
+      <div class="hint">C̄_base=平均评论量；L̄_base=平均点赞量</div>
+    </div>
     <div class="bpp-group"><label>帖子内容</label><textarea id="bpp-content" placeholder="从页面复制粘贴帖子正文..."></textarea></div>
     <div class="bpp-section-actions">
       <button class="bpp-btn-sm outline" id="bpp-clear-post">🗑 清空帖子</button>
@@ -809,6 +888,8 @@
     <div class="bpp-config-error" id="bpp-config-error"></div>
     <div class="bpp-section-actions" style="border-top-style:solid;margin-top:8px">
       <button class="bpp-btn-sm outline" id="bpp-clear-config">🗑 清空全部</button>
+      <button class="bpp-btn-sm outline" id="bpp-export-config">导出</button>
+      <button class="bpp-btn-sm outline" id="bpp-import-config">导入</button>
     </div>
   </div>
 
@@ -924,6 +1005,8 @@
       document.getElementById("bpp-fwd").value = d.stats?.forward || "";
       document.getElementById("bpp-cmt").value = d.stats?.comment || "";
       document.getElementById("bpp-coin").value = d.stats?.coin || "";
+      document.getElementById("bpp-avg-cmt").value = d.avgComment || 200;
+      document.getElementById("bpp-avg-like").value = d.avgLike || 200;
     };
     const collectPostForm = () => ({
       title: document.getElementById("bpp-title").value.trim(),
@@ -938,6 +1021,10 @@
         comment: parseInt(document.getElementById("bpp-cmt").value, 10) || 0,
         coin: parseInt(document.getElementById("bpp-coin").value, 10) || 0,
       },
+      avgComment:
+        parseInt(document.getElementById("bpp-avg-cmt").value, 10) || 200,
+      avgLike:
+        parseInt(document.getElementById("bpp-avg-like").value, 10) || 200,
     });
 
     const showError = (msg) => {
@@ -951,18 +1038,12 @@
 
     // 渲染单个模型结果卡片
     const renderOneCard = (r) => {
-      const stageClassMap = {
-        冰点: "ice",
-        观望: "wait",
-        沸腾: "boil",
-        样本过少: "few",
-      };
       if (r._error) {
         return `<div class="bpp-result-card" style="border-left:3px solid #ff4d4f;margin-bottom:10px">
 <div style="font-size:12px;font-weight:600;color:#ff4d4f;margin-bottom:4px">❌ ${r._pfName} / ${r._model}</div>
 <div style="font-size:11px;color:#888">${r._error}</div></div>`;
       }
-      // 解析关键词次数，按次数降序排列
+      // 关键词频率
       let kwHtml = "";
       if (r.keyword_stats) {
         const pairs = r.keyword_stats
@@ -975,23 +1056,22 @@
         pairs.sort((a, b) => b.count - a.count);
         if (pairs.length > 0) {
           const total = pairs.reduce((s, p) => s + p.count, 0);
-          kwHtml = `<div class="bpp-result-row" style="flex-wrap:wrap;padding:8px 0;border: 1px solid #ccc;border-radius: 8px;margin-top: 8px;padding-left: 4px;">
+          kwHtml = `<div class="bpp-result-row" style="flex-wrap:wrap;padding:8px 0;border:1px solid #ccc;border-radius:8px;margin-top:8px;padding-left:4px">
   <span class="bpp-result-label">关键词频率</span>
-  <span class="bpp-result-value" style="max-width:70%;text-align:left;">${pairs.map((p) => `<span style="display:inline-block;margin:2px 4px;padding:1px 8px;border-radius:10px;font-size:11px;background:${p.count > total * 0.2 ? "#fff1f0" : p.count > 0 ? "#f6ffed" : "#f5f5f5"};color:${p.count > total * 0.2 ? "#ff4d4f" : p.count > 0 ? "#52c41a" : "#bbb"}">${p.name} ${p.count}</span>`).join("")}</span>
+  <span class="bpp-result-value" style="max-width:70%;text-align:left">${pairs.map((p) => `<span style="display:inline-block;margin:2px 4px;padding:1px 8px;border-radius:10px;font-size:11px;background:${p.count > total * 0.2 ? "#fff1f0" : p.count > 0 ? "#f6ffed" : "#f5f5f5"};color:${p.count > total * 0.2 ? "#ff4d4f" : p.count > 0 ? "#52c41a" : "#bbb"}">${p.name} ${p.count}</span>`).join("")}</span>
 </div>`;
         }
       }
-
-      const sc = stageClassMap[r.stage] || "few";
-      const cp = Math.round((r.confidence || 0) * 100);
-      const cc = cp >= 70 ? "#52c41a" : cp >= 40 ? "#faad14" : "#ff4d4f";
+      // Scope 仪表盘
+      const scope = Math.round(r.scope) || 0;
+      const sc = scope >= 70 ? "boil" : scope >= 40 ? "wait" : "ice";
+      const scColor =
+        scope >= 70 ? "#ff4d4f" : scope >= 40 ? "#faad14" : "#1890ff";
       return `<div class="bpp-result-card" style="margin-bottom:10px">
 <div style="font-size:12px;font-weight:600;color:#fa8c16;margin-bottom:6px">🤖 ${r._pfName} / ${r._model}</div>
-<div class="bpp-result-stage ${sc}">📊 ${r.stage || "未知"}</div>
-<div class="bpp-result-row"><span class="bpp-result-label">操作建议</span><span class="bpp-result-value" style="font-size:14px;font-weight:bold;color:#00aeec">${r.operation || "—"}</span></div>
-<div class="bpp-result-row"><span class="bpp-result-label">置信度</span><span class="bpp-result-value">${cp}%</span></div>
-<div class="bpp-result-conf-bar"><div class="bpp-result-conf-fill" style="width:${cp}%;background:${cc}"></div></div>
-<div class="bpp-result-row"><span class="bpp-result-label">UP主与评论区关系</span><span class="bpp-result-value">${r.up_crowd_relation || "—"}</span></div>
+<div class="bpp-result-stage ${sc}">分数: ${scope}</div>
+<div class="bpp-result-conf-bar"><div class="bpp-result-conf-fill" style="width:${scope}%;background:${scColor}"></div></div>
+<div style="font-size:11px;color:#888;margin-top:4px;text-align:right">0~100</div>
 <div class="bpp-result-row"><span class="bpp-result-label">风险提示</span><span class="bpp-result-value" style="color:${r.risk_note && r.risk_note !== "null" ? "#ff4d4f" : "#52c41a"}">${r.risk_note && r.risk_note !== "null" ? r.risk_note : "无"}</span></div>
 <div class="bpp-result-evidence">${r.core_evidence || "无"}</div>
 ${kwHtml}</div>`;
@@ -1049,6 +1129,8 @@ ${cards}
       ].forEach((id) => {
         document.getElementById(id).value = "";
       });
+      document.getElementById("bpp-avg-cmt").value = "200";
+      document.getElementById("bpp-avg-like").value = "200";
       commentStore.manualPostData = null;
       console.log("%c✅ 帖子信息已清空", "color:#888;");
     };
@@ -1127,6 +1209,102 @@ ${cards}
       document.getElementById("bpp-result").classList.remove("show");
       hideError();
       console.log("%c✅ 全部API配置已清空", "color:#888;");
+    };
+
+    // 📤 导出配置
+    document.getElementById("bpp-export-config").onclick = () => {
+      const data = {
+        version: 1,
+        encrypted: false,
+        profiles: llmConfig.profiles.map((p) => ({ ...p })),
+        activeNames: [...llmConfig.activeNames],
+      };
+      if (data.profiles.length === 0) {
+        console.log("%c⚠️ 没有可导出的配置", "color:#faad14");
+        return;
+      }
+      const pw = prompt("请输入导出密码（用于加密 API Key）：");
+      if (pw === null) return; // 取消
+      if (!pw) {
+        console.log("%c⚠️ 密码不能为空", "color:#faad14");
+        return;
+      }
+      const pw2 = prompt("请再次输入密码确认：");
+      if (pw !== pw2) {
+        console.log("%c⚠️ 两次密码不一致", "color:#ff4d4f");
+        return;
+      }
+      data.encrypted = true;
+      data.profiles.forEach((p) => {
+        if (p.apiKey) p.apiKey = xorEncrypt(p.apiKey, pw);
+      });
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json",
+      });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "bili-llm-config.json";
+      a.click();
+      URL.revokeObjectURL(a.href);
+      console.log(
+        "%c✅ 配置已加密导出（" + data.profiles.length + " 个 profile）",
+        "color:#52c41a",
+      );
+    };
+
+    // 📥 导入配置
+    document.getElementById("bpp-import-config").onclick = () => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".json";
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (re) => {
+          try {
+            const data = JSON.parse(re.target.result);
+            if (!data.profiles || !Array.isArray(data.profiles)) {
+              throw new Error("配置文件格式无效");
+            }
+            if (data.encrypted) {
+              const pw = prompt("请输入解密密码：");
+              if (pw === null) return;
+              if (!pw) {
+                console.log("%c⚠️ 密码不能为空", "color:#faad14");
+                return;
+              }
+              data.profiles.forEach((p) => {
+                if (p.apiKey) {
+                  try {
+                    p.apiKey = xorDecrypt(p.apiKey, pw);
+                  } catch (err) {
+                    console.log(
+                      "%c⚠️ 解密失败，密码可能不正确",
+                      "color:#ff4d4f",
+                    );
+                    throw new Error("解密失败");
+                  }
+                }
+              });
+            }
+            llmConfig.profiles = data.profiles;
+            llmConfig.activeNames = data.activeNames || [];
+            renderProfiles();
+            clearProfileForm();
+            document.getElementById("bpp-result").classList.remove("show");
+            hideError();
+            console.log(
+              "%c✅ 配置已导入（" + data.profiles.length + " 个 profile）",
+              "color:#52c41a",
+            );
+          } catch (err) {
+            console.log("%c❌ 导入失败: " + err.message, "color:#ff4d4f");
+          }
+        };
+        reader.readAsText(file);
+      };
+      input.click();
     };
 
     // ⚡ 自动加载评论 — 保存目标数量
