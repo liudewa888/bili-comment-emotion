@@ -259,7 +259,6 @@
         const ac = d.avgComment ?? 200;
         const al = d.avgLike ?? 200;
         md += `【历史帖子数据】过去10条平均评论量(C̄_base)：${ac}；过去10条平均点赞量(L̄_base)：${al}\n`;
-        md += `【UP主】${d.up_master || ""}\n`;
         if (d.content) md += `\n## 帖子内容\n\n---\n\n${d.content}\n\n---\n`;
         md += `\n`;
       }
@@ -283,20 +282,24 @@
         md += `---\n\n`;
       });
 
-      // # 情绪轮动模型
-      md += `# 情绪轮动模型\n\n`;
-      md += `## 冰点（底部｜无人问津，适合买入/抄底）\n\n`;
-      md += `- 核心心理：麻木、绝望、丧失信心\n`;
+      // # 情绪语料(评分映射表)
+      md += `# 情绪语料(评分映射表)\n\n`;
+      md += `## 看空\n\n`;
       md += `- 评论区特征：评论稀少或死气沉沉；大量求安慰/求按摩内容/诉苦；充斥销户、摆烂、躺平言论、爆仓、卖房、家人、量化、空仓、死抗、抄底、梭哈、加杠杆；对利好消息完全脱敏甚至解读为利空\n`;
-      md += `- B站典型语料："跌/亏麻/嘛了"、"抄底抄在半山腰"、"做家务"、"不玩了准备销户"、"再怎么反弹也是诱多"、"懒得看盘了"、"谁还敢进场"、"利好出尽就是利空"、"分析的再多都是跌"、"这市场已经彻底没救了"、"对不起家人"、"终于收盘了"、"*家跌停"、"保卫战"、"UP救我"、"被套了"、"头皮发麻"、"毁灭吧"、"狗庄"、"死磕"、"牛走了"、"老乡别走"、"事到如今"、"事已至此"、"绿的发慌"、"吃面"、"关灯吃面"、"牛还在吗"、"扛不住"、"完啦"、"全完了"、"熔断"、"错杀"、"崩了"、"股灾"、"至暗时刻"\n\n`;
-      md += `## 观望（中途｜震荡拉锯，适合观望）\n\n`;
-      md += `- 核心心理：怀疑、犹豫、摇摆不定\n`;
+      md += `- B站典型语料(重度 -> 轻度)\n`;
+      md += `  A级: 毁灭吧、全完了、崩了、股灾、至暗时刻、完啦、熔断、错杀、彻底没救了销户、爆仓、做家务\n`;
+      md += `  B级: 亏麻了、跌麻了、扛不住、对不起家人、终于收盘了、事到如今、加杠杆、UP救我、保卫战、*家跌停、死抗、死磕、量化、狗庄、牛走了、被套、抄底半山腰\n`;
+      md += `  C级: 吃面、关灯吃面、绿的发慌、头皮发麻、懒得看盘、谁还敢进场、利好出尽就是利空、反弹也是诱多、分析的再多都是跌、事已至此、牛还在吗、忍无可忍、空仓、量化、老乡别走\n\n`;
+      md += `## 观望\n\n`;
       md += `- 评论区特征：评论量逐步回升但分歧巨大；刚回本就急于跑路；频繁询问是反弹还是反转；想进场又怕追高\n`;
-      md += `- B站典型语料："反弹还是反转"、"不敢加仓怕冲高回落"、"涨这么多随时要回调"、"有点想进但怕追在半山腰"、"先观望确认趋势再说"、"垃圾盘面浪费时间"、"垃圾行情没意思"、"看盘不如出去旅游"、"半仓观望"、"盘面真没意思"\n\n`;
-      md += `## 沸腾（顶部｜人声鼎沸，适合减仓/清仓）\n\n`;
-      md += `- 核心心理：狂热、贪婪、亢奋\n`;
+      md += `- B站典型语料\n`;
+      md += `  A级: 反弹还是反转、不敢加仓怕冲高回落、涨这么多随时要回调、有点想进但怕追在半山腰、先观望确认趋势再说、垃圾盘面浪费时间、垃圾行情没意思、看盘不如出去旅游、半仓观望、盘面真没意思、右侧交易\n\n`;
+      md += `## 看多\n\n`;
       md += `- 评论区特征：评论刷屏爆满；大量晒收益/晒截图/晒消费/夸赞感谢UP；低于8级账号密集涌入;新手求代码求带；询问目标点位；出现踏空/借钱/梭哈/卖房/开户/卸杠杆等言论\n`;
-      md += `- B站典型语料："还能买吗"、"家庭地位"、"开香槟"、"要消费"、"UP牛逼"、"膜拜UP"、"赢嘛/麻了"、"今天就这样吧"、"收盘吧"、"翻倍"、"爆赚"、"啥时间跑"、"头晕目眩"、"服了UP/佩服UP"、"牛回"、"又涨停了"、"恐高"、"奖励"、"加蛋"、"绝了"、"yyds"、"收下我的膝盖"、"打爆"、"空狗"、"空头"\n\n`;
+      md += `- B站典型语料(轻度 -> 重度)\n`;
+      md += `  C级: 牛回、有戏、看多、谨慎乐观、目标点位、奖励、加蛋、绝了、家庭地位、奖励\n`;
+      md += `  B级: UP牛逼、牛逼、服了、爆赚、又涨停了、开香槟、恐高、翻倍、yyds、打爆空头、收下我的膝盖、膜拜\n`;
+      md += `  A级: 赢嘛/麻了、爆赚、头晕目眩、又涨停了、恐高、打爆、空狗、空头\n\n`;
 
       // # 关键词
       md += `# 关键词(股票模块)\n\n`;
@@ -312,7 +315,7 @@
       // # 口号词
       md += `# 口号词\n\n`;
       md += `忠诚：葱橙\n`;
-      md += `数钱：shu钱、下周数钱\n\n`;
+      md += `数钱： shu钱、下周数钱\n\n`;
 
       // # 注意
       md += `# 注意\n\n`;
@@ -326,26 +329,25 @@
       // # 分析任务
       md += `# 分析任务\n\n`;
       md += `## 分析要求\n\n`;
-      md += `- 你是一个A股散户心理情绪观察舆情助手。请综合正文立场与评论区高热度反馈，输出【散户情绪报告】\n\n`;
+      md += `- 你是一个A股散户心理情绪观察舆情助手。请综合正文与评论区对当前市场打分并输出【散户情绪报告】\n\n`;
       md += `## 打分规则\n\n`;
-      md += `1. 核心公式\n\n`;
-      md += `\`\`\`text\nScope = Clip( [ (Wi×Si + We×Se + Wk×Sk + Wq×Sq) × Cemoji ] + Ofloor, 0, 100 )\n\`\`\`\n\n`;
-      md += `2. 参数速查表\n`;
-      md += `   | 符号 | 含义 | 权重 | 计算逻辑 |\n`;
-      md += `   | :--- | :--- | :--- | :--- |\n`;
-      md += `   | X̄_base | 动态基准线 | - | 过去10条帖子均值：C̄_base=平均评论量，L̄_base=平均点赞量 |\n`;
-      md += `   | Si | 互动偏离得分 | Wi=0.30 | Rc=当前评论量/C̄_base；Rl=当前点赞量/L̄_base<br>Si=Clip((Rc×0.5+Rl×0.5)×50, 0, 100) |\n`;
-      md += `   | Se | 情绪词频得分 | We=0.25 | Nice/Nwait/Nboil为三阶段词频<br>Se=(Nboil×100+Nwait×50+Nice×0)/(Nice+Nwait+Nboil+1)×100 |\n`;
-      md += `   | Sk | 关键词热度得分 | Wk=0.20 | Nkey=8大板块关键词总命中次数<br>Sk=Clip(Nkey×5, 0, 100) |\n`;
-      md += `   | Sq | 质量信号得分 | Wq=0.25 | Sq=Pgeo×40+Plvl×30+Plen×30<br>Pgeo=北上广深/江浙沪IP占比<br>Plvl=20级及以上账号占比<br>Plen=原创感悟(非新闻)>40字占比 |\n`;
-      md += `   | Cemoji | 表情包修正系数 | 乘法因子 | 默认1.0；[doge]+沸腾词→×0.6；[吃瓜]/[哈欠]+观望词→×0.9；[微笑]/[呵呵]+冰点词→×0.8；楼中楼≥3反讽→对应Se×0.2；多系数取最小值 |\n`;
-      md += `   | Ofloor | 噪音地板偏移 | 加法项 | Nice>0且Nboil>0→+10；Nkey=0且Rc<0.3→-10；否则→0 |\n\n`;
-      md += `3. 执行约束\n`;
-      md += `   基准线前置：C̄_base L̄_base 当前评论量 当前点赞量 均来自 帖子数据【当前帖子数据】【历史帖子数据】\n`;
-      md += `   词频原子性：同一条评论中同一关键词多次出现仅计1次；情绪词与板块关键词独立计数\n`;
-      md += `   质量信号判定：Plen 统计时必须排除新闻搬运/资讯摘要类内容，仅计入带个人判断的原创感悟\n`;
-      md += `   权重恒定：Wi+We+Wk+Wq=1.0\n`;
-      md += `   除零保护：分母为0时对应子项取中性值50\n\n`;
+      md += `- 起始分数: 50分;最终分数(1~100分)\n`;
+      md += `- 主要是对: A股市场看待情绪,看好加分,看空减分,中性0分\n\n`;
+      md += `### 构成\n\n`;
+      md += `- 帖子打分(占比:2成) + 评论打分(占比:8成)\n`;
+      md += `- 评论打分: 单条评论评分相加\n\n`;
+      md += `#### 帖子打分\n\n`;
+      md += `- 主题,内容的语义\n`;
+      md += `- 点赞,评论数量\n`;
+      md += `- 相对于历史的 点赞,评论数量\n`;
+      md += `- 情绪语料 重度分大于轻度\n\n`;
+      md += `#### 评论打分\n\n`;
+      md += `- 评论内容,子评论内容的语义\n`;
+      md += `- 点赞,评论,人工分数\n`;
+      md += `- 评论默认有 200条,不够200选择全部,超出200选择前200\n\n`;
+      md += `### 执行约束\n\n`;
+      md += `1. **质量信号判定**：排除新闻搬运/资讯摘要，仅计入带个人判断的原创感悟\n`;
+      md += `2. **除零保护**：分母为 0 时对应子项取中性值 50\n\n`;
       md += `## 分析规则\n\n`;
       md += `### 表情包\n\n`;
       md += `- [doge]/[狗头]：搭配赞美或极端口号时，视为绝望期反讽或怀疑期自嘲，严禁归入狂热期。仅在有具体数据论证时才可能为中性。\n`;
@@ -357,13 +359,13 @@
       md += `- 语义冲突：文本与表情情绪相反时，优先以表情为准；连续重复相同表情≥3个，置信度下调0.3并标记异常\n\n`;
       md += `### 关键词出现频率监控\n\n`;
       md += `- 统计上面关键词（及对应近义词）出现的次数\n`;
-      md += `- 同一条评论有多次关键词（及对应近义词）出现算作1次\n\n`;
+      md += `- 同一条评论有多次关键词（及对应近义词）出现算作1次\n`;
+      md += `- 关键词和情绪词独立计算\n\n`;
       md += `# 输出格式\n\n`;
       md += `仅返回以下JSON结构，不包含任何解释性文字、markdown标记或额外说明：\n\n`;
       md += `{\n`;
       md += `"scope": 0~100（出自打分规则）,\n`;
-      md += `"core_evidence": "≤300字的核心判定依据，引用最代表性的评论的关键词",\n`;
-      md += `"risk_note": "水军干扰|反讽密集|样本过少|情绪极端化|null",\n`;
+      md += `"core_evidence": "≤400字的核心判定依据，引用最代表性的评论的关键词",\n`;
       md += `"keyword_stats": "氦气:N次; 锂矿:N次; 存储:N次; 商航:N次; AI医疗:N次; 半导体:N次; 智驾:N次；光刻胶:N次"\n`;
       md += `}\n`;
       return md;
@@ -411,7 +413,7 @@
               {
                 role: "system",
                 content:
-                  "你是一个A股散户心理情绪观察舆情助手。请严格按照JSON格式返回分析结果，不要包含markdown代码块标记。",
+                  '你是一个A股散户心理情绪观察舆情助手。请严格按照JSON格式返回分析结果，不要包含markdown代码块标记。格式：{"scope":0~100,"core_evidence":"≤400字核心判定依据","keyword_stats":"氦气:N次;..."}',
               },
               { role: "user", content: prompt },
             ],
@@ -764,8 +766,7 @@
 .bpp-profile-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:14px;font-size:11px;border:1px solid #ddd;background:#fff;cursor:pointer;user-select:none;transition:all .15s}
 .bpp-profile-chip:hover{border-color:#fa8c16}
 .bpp-profile-chip.active{background:#fff7e6;border-color:#fa8c16;color:#d46b08;font-weight:600}
-.bpp-profile-chip .pf-del{margin-left:2px;color:#bbb;font-weight:bold;font-size:14px;line-height:1;cursor:pointer}
-.bpp-profile-chip .pf-del:hover{color:#ff4d4f}
+
 
 #bili-post-edit-btn:hover{color:#00aeec;border-color:#00aeec}
 #bili-ai-analyze-btn:hover{background:#fff7e6}
@@ -867,7 +868,7 @@
   <div class="bpp-section">
     <div class="bpp-section-title">🤖 大模型 API 配置</div>
     <div class="bpp-group">
-      <label>已保存的 API（点击多选，× 删除）</label>
+      <label>已保存的 API（点击多选）</label>
       <div class="bpp-profile-list" id="bpp-profile-list"></div>
     </div>
     <div class="bpp-group"><label>名称</label><input id="bpp-pf-name" placeholder="如：DeepSeek / OpenAI / 硅基流动"></div>
@@ -931,9 +932,8 @@
         chip.title =
           `${p.model}\n${p.apiBase}\n` +
           (isActive ? "已选中（点击取消）" : "点击选中");
-        chip.innerHTML = `${p.name}<span class="pf-del" data-name="${p.name}">&times;</span>`;
-        chip.addEventListener("click", (e) => {
-          if (e.target.classList.contains("pf-del")) return;
+        chip.textContent = p.name;
+        chip.addEventListener("click", () => {
           // 点击 = 切换选中
           let names = llmConfig.activeNames;
           if (names.includes(p.name)) {
@@ -946,23 +946,6 @@
           fillProfileForm(p);
         });
         container.appendChild(chip);
-      });
-      // 删除事件
-      container.querySelectorAll(".pf-del").forEach((del) => {
-        del.addEventListener("click", (e) => {
-          e.stopPropagation();
-          const name = del.dataset.name;
-          let profiles = llmConfig.profiles.filter((p) => p.name !== name);
-          llmConfig.profiles = profiles;
-          let names = llmConfig.activeNames.filter((n) => n !== name);
-          llmConfig.activeNames = names;
-          renderProfiles();
-          clearProfileForm();
-          if (names.length > 0) {
-            const first = profiles.find((p) => p.name === names[0]);
-            if (first) fillProfileForm(first);
-          }
-        });
       });
     };
 
@@ -1072,7 +1055,6 @@
 <div class="bpp-result-stage ${sc}">分数: ${scope}</div>
 <div class="bpp-result-conf-bar"><div class="bpp-result-conf-fill" style="width:${scope}%;background:${scColor}"></div></div>
 <div style="font-size:11px;color:#888;margin-top:4px;text-align:right">0~100</div>
-<div class="bpp-result-row"><span class="bpp-result-label">风险提示</span><span class="bpp-result-value" style="color:${r.risk_note && r.risk_note !== "null" ? "#ff4d4f" : "#52c41a"}">${r.risk_note && r.risk_note !== "null" ? r.risk_note : "无"}</span></div>
 <div class="bpp-result-evidence">${r.core_evidence || "无"}</div>
 ${kwHtml}</div>`;
     };
@@ -1090,15 +1072,15 @@ ${cards}
 <div class="bpp-result-meta">${_formatPostTime()}</div>`;
       container.classList.add("show");
       document.getElementById("bpp-loading").classList.remove("show");
-      console.log(
-        "%c🤖 多模型分析结果 %c(可与手动分析对比)",
-        "font-size:16px;font-weight:bold;color:#00aeec;",
-        "color:#888;",
-      );
-      results.forEach((r) => {
-        console.log(`--- ${r._pfName} / ${r._model} ---`);
-        console.log(JSON.stringify(r, null, 2));
-      });
+      // console.log(
+      //   "%c🤖 多模型分析结果 %c(可与手动分析对比)",
+      //   "font-size:16px;font-weight:bold;color:#00aeec;",
+      //   "color:#888;",
+      // );
+      // results.forEach((r) => {
+      //   console.log(`--- ${r._pfName} / ${r._model} ---`);
+      //   console.log(JSON.stringify(r, null, 2));
+      // });
     };
 
     // ========== 事件 ==========
@@ -1385,6 +1367,7 @@ ${cards}
       );
       const results = await Promise.all(promises);
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      console.log("分析结果: ", results);
 
       showResults(results, elapsed);
       const ok = results.filter((r) => !r._error).length;
