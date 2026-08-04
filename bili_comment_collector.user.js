@@ -159,6 +159,22 @@
     },
   };
 
+  /* ===== 历史帖子数据配置（持久化） ===== */
+  const historyConfig = {
+    get avgComment() {
+      return GM_getValue("bili_hist_avg_comment", 200);
+    },
+    set avgComment(v) {
+      GM_setValue("bili_hist_avg_comment", v);
+    },
+    get avgLike() {
+      return GM_getValue("bili_hist_avg_like", 200);
+    },
+    set avgLike(v) {
+      GM_setValue("bili_hist_avg_like", v);
+    },
+  };
+
   /* ===== 自动滚动加载配置 ===== */
   const autoScrollConfig = {
     get targetCount() {
@@ -187,7 +203,7 @@
 
     addReply(r) {
       if (!r || !r.content) return 0;
-      const rpid = r.rpid || r.rpid_str;
+      const rpid = r.rpid_str || r.rpid;
       if (this.seenIds.has(rpid)) return 0;
       this.seenIds.add(rpid);
       const main = {
@@ -203,6 +219,7 @@
         ipAddress: r.reply_control?.location,
         time: _formatTime(r.ctime),
         timestamp: r.ctime,
+        images: r.content.pictures?.map((item) => item.img_src) || [],
       };
       main.scope = calcScoreFCHI(main);
       this.comments.push(main);
@@ -222,6 +239,7 @@
             replyCount: 0,
             time: _formatTime(sr.ctime),
             timestamp: sr.ctime,
+            images: sr.content?.pictures?.map((item) => item.img_src) || [],
           });
           added++;
         });
@@ -256,10 +274,13 @@
         md += `【发布时间】${_formatPostTime(d.post_time)}\n`;
         const s = d.stats || {};
         md += `【当前帖子数据】点赞数量: ${s.like ?? 0};评论数量: ${s.comment ?? 0};收藏数量: ${s.favorite ?? 0};转发数量: ${s.forward ?? 0};投币数量: ${s.coin ?? 0}\n`;
-        const ac = d.avgComment ?? 200;
-        const al = d.avgLike ?? 200;
+        const ac = historyConfig.avgComment;
+        const al = historyConfig.avgLike;
         md += `【历史帖子数据】过去10条平均评论量(C̄_base)：${ac}；过去10条平均点赞量(L̄_base)：${al}\n`;
-        if (d.content) md += `\n## 帖子内容\n\n---\n\n${d.content}\n\n---\n`;
+        if (d.content)
+          md += `\n## 帖子内容\n\n### 内容\n\n\`\`\`text\n\n${d.content}\n\n\`\`\`\n`;
+        if (d.images && d.images.length > 0)
+          md += `\n### 内容图片链接(可选)\n\n\`\`\`text\n${d.images.join("\n\n")}\n\`\`\`\n`;
         md += `\n`;
       }
 
@@ -272,34 +293,17 @@
       sortedMains.forEach((m, idx) => {
         const subsOfThis = subs.filter((s) => s.parentRpid === m.rpid);
         md += `### ${idx + 1}. ${m.user} [🔥${m.likes} 💬${m.replyCount} 📊${m.scope}]\n`;
-        md += `> ${m.time} | IP属地：${m.ipAddress || "未知"}\n\n${m.content}\n\n`;
+        md += `> ${m.time} | IP属地：${m.ipAddress || "未知"}\n\n内容: ${m.content}\n`;
+        if (m.images && m.images.length > 0) md += `图片(可选): ${m.images.join(",")}\n`;
+        md += `\n`;
         if (subsOfThis.length > 0) {
           subsOfThis.forEach((s) => {
-            md += `- ${s.user}: ${s.content} (👍${s.likes})\n`;
+            md += `- ${s.user}: ${s.content}${s.images && s.images.length > 0 ? " 图片(可选): " + s.images.join(",") : ""} (👍${s.likes})\n`;
           });
           md += `\n`;
         }
         md += `---\n\n`;
       });
-
-      // # 情绪语料(评分映射表)
-      md += `# 情绪语料(评分映射表)\n\n`;
-      md += `## 看空\n\n`;
-      md += `- 评论区特征：评论稀少或死气沉沉；大量求安慰/求按摩内容/诉苦；充斥销户、摆烂、躺平言论、爆仓、卖房、家人、量化、空仓、死抗、抄底、梭哈、加杠杆；对利好消息完全脱敏甚至解读为利空\n`;
-      md += `- B站典型语料(重度 -> 轻度)\n`;
-      md += `  A级: 毁灭吧、全完了、崩了、股灾、至暗时刻、完啦、熔断、错杀、彻底没救了销户、爆仓、做家务\n`;
-      md += `  B级: 亏麻了、跌麻了、扛不住、对不起家人、终于收盘了、事到如今、加杠杆、UP救我、保卫战、*家跌停、死抗、死磕、量化、狗庄、牛走了、被套、抄底半山腰\n`;
-      md += `  C级: 吃面、关灯吃面、绿的发慌、头皮发麻、懒得看盘、谁还敢进场、利好出尽就是利空、反弹也是诱多、分析的再多都是跌、事已至此、牛还在吗、忍无可忍、空仓、量化、老乡别走\n\n`;
-      md += `## 观望\n\n`;
-      md += `- 评论区特征：评论量逐步回升但分歧巨大；刚回本就急于跑路；频繁询问是反弹还是反转；想进场又怕追高\n`;
-      md += `- B站典型语料\n`;
-      md += `  A级: 反弹还是反转、不敢加仓怕冲高回落、涨这么多随时要回调、有点想进但怕追在半山腰、先观望确认趋势再说、垃圾盘面浪费时间、垃圾行情没意思、看盘不如出去旅游、半仓观望、盘面真没意思、右侧交易\n\n`;
-      md += `## 看多\n\n`;
-      md += `- 评论区特征：评论刷屏爆满；大量晒收益/晒截图/晒消费/夸赞感谢UP；低于8级账号密集涌入;新手求代码求带；询问目标点位；出现踏空/借钱/梭哈/卖房/开户/卸杠杆等言论\n`;
-      md += `- B站典型语料(轻度 -> 重度)\n`;
-      md += `  C级: 牛回、有戏、看多、谨慎乐观、目标点位、奖励、加蛋、绝了、家庭地位、奖励\n`;
-      md += `  B级: UP牛逼、牛逼、服了、爆赚、又涨停了、开香槟、恐高、翻倍、yyds、打爆空头、收下我的膝盖、膜拜\n`;
-      md += `  A级: 赢嘛/麻了、爆赚、头晕目眩、又涨停了、恐高、打爆、空狗、空头\n\n`;
 
       // # 关键词
       md += `# 关键词(股票模块)\n\n`;
@@ -320,11 +324,30 @@
       // # 注意
       md += `# 注意\n\n`;
       md += `## 评论格式\n\n\`\`\`md\n`;
-      md += `### 序号1. 用户名 [点赞数量 评论数量 分数权重]\n\n> 评论时间 | 用户名IP属地\n\n评论内容\n\n`;
+      md += `### 序号1. 用户名 [点赞数量 评论数量 FCHI分数]\n\n> 评论时间 | 用户名IP属地\n\n内容: 评论内容\n图片(可选): http://xxx.png,http://xxx.png\n`;
       md += `- 用户名: 子评论内容\n- 用户名: 子评论内容\n  ...\n\n---\n\n### 序号2.\n\`\`\`\n\n`;
       md += `## 表情包\n\n- {'[微笑]'} 帖子和评论区中为B站表情包,对分析也重要\n\n`;
       md += `## 关键词格式\n\n\`\`\`md\n词：对应的多种近义词\n\`\`\`\n\n`;
       md += `## 口号词\n\n- UP和粉丝公认的口号，鼓励打气\n\n`;
+
+      // # 情绪语料(评分映射表)
+      md += `# 情绪语料(评分映射表)\n\n`;
+      md += `## 看空\n\n`;
+      md += `- 评论区特征：评论稀少或死气沉沉；大量求安慰/求按摩内容/诉苦；充斥销户、摆烂、躺平言论、爆仓、卖房、家人、量化、空仓、死抗、抄底、梭哈、加杠杆；对利好消息完全脱敏甚至解读为利空\n`;
+      md += `- B站典型语料(重度 -> 轻度)\n`;
+      md += `  A级: 毁灭吧、全完了、崩了、股灾、至暗时刻、完啦、熔断、错杀、彻底没救了销户、爆仓、做家务\n`;
+      md += `  B级: 亏麻了、跌麻了、扛不住、对不起家人、终于收盘了、事到如今、加杠杆、UP救我、保卫战、*家跌停、死抗、死磕、量化、狗庄、牛走了、被套、抄底半山腰\n`;
+      md += `  C级: 吃面、关灯吃面、绿的发慌、头皮发麻、懒得看盘、谁还敢进场、利好出尽就是利空、反弹也是诱多、分析的再多都是跌、事已至此、牛还在吗、忍无可忍、空仓、量化、老乡别走\n\n`;
+      md += `## 观望\n\n`;
+      md += `- 评论区特征：评论量逐步回升但分歧巨大；刚回本就急于跑路；频繁询问是反弹还是反转；想进场又怕追高\n`;
+      md += `- B站典型语料\n`;
+      md += `  A级: 反弹还是反转、不敢加仓怕冲高回落、涨这么多随时要回调、有点想进但怕追在半山腰、先观望确认趋势再说、垃圾盘面浪费时间、垃圾行情没意思、看盘不如出去旅游、半仓观望、盘面真没意思、右侧交易\n\n`;
+      md += `## 看多\n\n`;
+      md += `- 评论区特征：评论刷屏爆满；大量晒收益/晒截图/晒消费/夸赞感谢UP；低于8级账号密集涌入;新手求代码求带；询问目标点位；出现踏空/借钱/梭哈/卖房/开户/卸杠杆等言论\n`;
+      md += `- B站典型语料(轻度 -> 重度)\n`;
+      md += `  C级: 牛回、有戏、看多、谨慎乐观、目标点位、奖励、加蛋、绝了、家庭地位、奖励\n`;
+      md += `  B级: UP牛逼、牛逼、服了、爆赚、又涨停了、开香槟、恐高、翻倍、yyds、打爆空头、收下我的膝盖、膜拜\n`;
+      md += `  A级: 赢嘛/麻了、爆赚、头晕目眩、又涨停了、恐高、打爆、空狗、空头\n\n`;
 
       // # 分析任务
       md += `# 分析任务\n\n`;
@@ -338,13 +361,46 @@
       md += `- 评论打分: 单条评论评分相加\n\n`;
       md += `#### 帖子打分\n\n`;
       md += `- 主题,内容的语义\n`;
+      md += `- 命中情绪语料 重度分大于轻度分,看好加分,看空减分,中性0分\n`;
       md += `- 点赞,评论数量\n`;
-      md += `- 相对于历史的 点赞,评论数量\n`;
-      md += `- 情绪语料 重度分大于轻度\n\n`;
+      md += `- 相对于历史的 点赞,评论数量\n\n`;
       md += `#### 评论打分\n\n`;
       md += `- 评论内容,子评论内容的语义\n`;
-      md += `- 点赞,评论,人工分数\n`;
+      md += `- 命中情绪语料 重度分大于轻度分,看好加分,看空减分,中性0分\n`;
+      md += `- 点赞,评论,FCHI分数(权重高)\n`;
       md += `- 评论默认有 200条,不够200选择全部,超出200选择前200\n\n`;
+      md += `#### 评分流程\n`;
+      md += `┌─────────────────────────────────────────────────────────────────────────┐\n`;
+      md += `│                   打分流程 V3.4（含多空密度惩罚）                      │\n`;
+      md += `├─────────────────────────────────────────────────────────────────────────┤\n`;
+      md += `│  STEP 1: 数据采集                                                     │\n`;
+      md += `│  ├── 帖子正文 + 当前点赞/评论量                                       │\n`;
+      md += `│  └── 历史10条平均点赞/评论量                                          │\n`;
+      md += `├─────────────────────────────────────────────────────────────────────────┤\n`;
+      md += `│  STEP 2: 帖子分（20%）                                                │\n`;
+      md += `│  ├── 内容语义（80%）：匹配情绪语料 → 看多加/看空减，-20~+20           │\n`;
+      md += `│  └── 相对历史互动热度（20%）：(综合热度比-1)×8 → -10~+10              │\n`;
+      md += `├─────────────────────────────────────────────────────────────────────────┤\n`;
+      md += `│  STEP 3: 评论分（80%）                                                │\n`;
+      md += `│  ├── 采样：≤200全采 / >200取综合热度Top200                            │\n`;
+      md += `│  ├── 单条基础分：匹配情绪语料 → -20~+20                              │    \n`;
+      md += `│  ├── 第一层权重（20%）：点赞、评论量权重系数                         │\n`;
+      md += `│  ├── 第二层权重（30%）：FCHI权重系数                                 │\n`;
+      md += `│  ├── 第三层权重（50%）：质量权重系数                                 │\n`;
+      md += `│  └── 加权聚合：Σ(评分×综合权重)/Σ综合权重 → 评论分                   │\n`;
+      md += `├─────────────────────────────────────────────────────────────────────────┤\n`;
+      md += `│  STEP 4: 多空密度惩罚（新增）                                         │\n`;
+      md += `│  ├── 计算采样评论中看空语料占比 P_看空                                │\n`;
+      md += `│  ├── 计算采样评论中看多语料占比 P_看多                                │\n`;
+      md += `│  ├── IF P_看空 ≥ 80% THEN 总分 = 总分 × 0.6（恐慌强化）              │\n`;
+      md += `│  ├── IF P_看空 ≥ 50% AND <80% THEN 总分 = 总分 × 0.8（中度看空惩罚） │\n`;
+      md += `│  ├── IF P_看多 ≥ 80% THEN 总分 = 总分 × 1.3（狂热强化）              │\n`;
+      md += `│  ├── IF P_看多 ≥ 50% AND <80% THEN 总分 = 总分 × 1.15（中度看多奖励）│\n`;
+      md += `│  └── IF P_看空 <50% AND P_看多 <50% THEN 不惩罚                       │\n`;
+      md += `├─────────────────────────────────────────────────────────────────────────┤\n`;
+      md += `│  STEP 5: 最终得分                                                     │\n`;
+      md += `│  帖子分×0.2 + 评论分×0.8 = 临时总分 → 应用多空密度惩罚 → 最终得分    │\n`;
+      md += `└─────────────────────────────────────────────────────────────────────────┘\n\n`;
       md += `### 执行约束\n\n`;
       md += `1. **质量信号判定**：排除新闻搬运/资讯摘要，仅计入带个人判断的原创感悟\n`;
       md += `2. **除零保护**：分母为 0 时对应子项取中性值 50\n\n`;
@@ -362,7 +418,7 @@
       md += `- 同一条评论有多次关键词（及对应近义词）出现算作1次\n`;
       md += `- 关键词和情绪词独立计算\n\n`;
       md += `# 输出格式\n\n`;
-      md += `仅返回以下JSON结构，不包含任何解释性文字、markdown标记或额外说明：\n\n`;
+      md += `仅返回以下标准的JSON结构，不包含任何解释性文字、markdown标记或额外说明：\n\n`;
       md += `{\n`;
       md += `"scope": 0~100（出自打分规则）,\n`;
       md += `"core_evidence": "≤400字的核心判定依据，引用最代表性的评论的关键词",\n`;
@@ -799,7 +855,7 @@
 .bpp-config-error.show{display:block}
 
 /* 独立 AI 结果面板（右上角，半屏高，不遮挡操作按钮） */
-#bili-ai-result-panel{position:fixed;top:0;right:-440px;width:420px;max-height:55vh;background:#fff;box-shadow:-4px 4px 20px rgba(0,0,0,.15);z-index:100002;transition:right .35s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;border-radius:0 0 0 12px}
+#bili-ai-result-panel{position:fixed;top:0;right:-440px;width:420px;height:72vh;background:#fff;box-shadow:-4px 4px 20px rgba(0,0,0,.15);z-index:100002;transition:right .35s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;border-radius:0 0 0 12px}
 #bili-ai-result-panel.open{right:0}
 .bar-header{padding:12px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;background:#fff7e6;font-size:14px;font-weight:bold;color:#222;border-radius:0 0 0 0;flex-shrink:0}
 .bar-close{cursor:pointer;font-size:20px;color:#888;line-height:1;padding:0 4px}.bar-close:hover{color:#333}
@@ -819,36 +875,20 @@
 <div class="bpp-header">⚙️ 配置面板<span class="bpp-close">&times;</span></div>
 <div class="bpp-body">
 
-  <!-- 📝 帖子信息 -->
+  <!-- 📊 历史帖子数据 -->
   <div class="bpp-section">
-    <div class="bpp-section-title">📝 帖子信息</div>
-    <div class="bpp-group"><label>标题</label><input id="bpp-title" placeholder="帖子标题"></div>
-    <div class="bpp-group"><label>发布时间</label><input id="bpp-time" placeholder="如：2026年07月24日 21:18"></div>
-    <div class="bpp-group"><label>UP主</label><input id="bpp-up" placeholder="UP主用户名"></div>
+    <div class="bpp-section-title">📊 历史帖子数据</div>
     <div class="bpp-group">
-      <label>效果数据</label>
+      <label>过去10条均值</label>
       <div class="bpp-stats-row">
-        <div><input id="bpp-like" placeholder="点赞" type="number"></div>
-        <div><input id="bpp-fav" placeholder="收藏" type="number"></div>
-        <div><input id="bpp-fwd" placeholder="转发" type="number"></div>
+        <div><input id="bpp-avg-cmt" placeholder="平均评论量(C̄_base)" type="number" value="200"></div>
+        <div><input id="bpp-avg-like" placeholder="平均点赞量(L̄_base)" type="number" value="200"></div>
       </div>
-      <div class="bpp-stats-row2" style="margin-top:6px">
-        <div><input id="bpp-cmt" placeholder="评论数" type="number"></div>
-        <div><input id="bpp-coin" placeholder="投币" type="number"></div>
-      </div>
+      <div class="hint">C̄_base=平均评论量；L̄_base=平均点赞量。与帖子信息分开保存，不受清空帖子影响。</div>
     </div>
-    <div class="bpp-group">
-      <label>历史帖子数据（过去10条均值）</label>
-      <div class="bpp-stats-row">
-        <div><input id="bpp-avg-cmt" placeholder="平均评论量" type="number" value="200"></div>
-        <div><input id="bpp-avg-like" placeholder="平均点赞量" type="number" value="200"></div>
-      </div>
-      <div class="hint">C̄_base=平均评论量；L̄_base=平均点赞量</div>
-    </div>
-    <div class="bpp-group"><label>帖子内容</label><textarea id="bpp-content" placeholder="从页面复制粘贴帖子正文..."></textarea></div>
     <div class="bpp-section-actions">
-      <button class="bpp-btn-sm outline" id="bpp-clear-post">🗑 清空帖子</button>
-      <button class="bpp-btn-sm primary" id="bpp-save-post">💾 保存帖子</button>
+      <button class="bpp-btn-sm outline" id="bpp-clear-history">🗑 清空</button>
+      <button class="bpp-btn-sm primary" id="bpp-save-history">💾 保存</button>
     </div>
   </div>
 
@@ -891,6 +931,31 @@
       <button class="bpp-btn-sm outline" id="bpp-clear-config">🗑 清空全部</button>
       <button class="bpp-btn-sm outline" id="bpp-export-config">导出</button>
       <button class="bpp-btn-sm outline" id="bpp-import-config">导入</button>
+    </div>
+  </div>
+
+  <!-- 📝 帖子信息 -->
+  <div class="bpp-section">
+    <div class="bpp-section-title">📝 帖子信息</div>
+    <div class="bpp-group"><label>标题</label><input id="bpp-title" placeholder="帖子标题"></div>
+    <div class="bpp-group"><label>发布时间</label><input id="bpp-time" placeholder="如：2026年07月24日 21:18"></div>
+    <div class="bpp-group"><label>UP主</label><input id="bpp-up" placeholder="UP主用户名"></div>
+    <div class="bpp-group">
+      <label>效果数据</label>
+      <div class="bpp-stats-row">
+        <div><input id="bpp-like" placeholder="点赞" type="number"></div>
+        <div><input id="bpp-fav" placeholder="收藏" type="number"></div>
+        <div><input id="bpp-fwd" placeholder="转发" type="number"></div>
+      </div>
+      <div class="bpp-stats-row2" style="margin-top:6px">
+        <div><input id="bpp-cmt" placeholder="评论数" type="number"></div>
+        <div><input id="bpp-coin" placeholder="投币" type="number"></div>
+      </div>
+    </div>
+    <div class="bpp-group"><label>帖子内容</label><textarea id="bpp-content" placeholder="从页面复制粘贴帖子正文..."></textarea></div>
+    <div class="bpp-section-actions">
+      <button class="bpp-btn-sm outline" id="bpp-clear-post">🗑 清空帖子</button>
+      <button class="bpp-btn-sm primary" id="bpp-save-post">💾 保存帖子</button>
     </div>
   </div>
 
@@ -988,8 +1053,10 @@
       document.getElementById("bpp-fwd").value = d.stats?.forward || "";
       document.getElementById("bpp-cmt").value = d.stats?.comment || "";
       document.getElementById("bpp-coin").value = d.stats?.coin || "";
-      document.getElementById("bpp-avg-cmt").value = d.avgComment || 200;
-      document.getElementById("bpp-avg-like").value = d.avgLike || 200;
+    };
+    const loadHistoryForm = () => {
+      document.getElementById("bpp-avg-cmt").value = historyConfig.avgComment;
+      document.getElementById("bpp-avg-like").value = historyConfig.avgLike;
     };
     const collectPostForm = () => ({
       title: document.getElementById("bpp-title").value.trim(),
@@ -1004,6 +1071,8 @@
         comment: parseInt(document.getElementById("bpp-cmt").value, 10) || 0,
         coin: parseInt(document.getElementById("bpp-coin").value, 10) || 0,
       },
+    });
+    const collectHistoryForm = () => ({
       avgComment:
         parseInt(document.getElementById("bpp-avg-cmt").value, 10) || 200,
       avgLike:
@@ -1086,6 +1155,7 @@ ${cards}
     // ========== 事件 ==========
     const openPanel = () => {
       loadPostForm();
+      loadHistoryForm();
       renderProfiles();
       const actives = llmConfig.actives;
       if (actives.length > 0) fillProfileForm(actives[0]);
@@ -1111,8 +1181,6 @@ ${cards}
       ].forEach((id) => {
         document.getElementById(id).value = "";
       });
-      document.getElementById("bpp-avg-cmt").value = "200";
-      document.getElementById("bpp-avg-like").value = "200";
       commentStore.manualPostData = null;
       console.log("%c✅ 帖子信息已清空", "color:#888;");
     };
@@ -1120,6 +1188,22 @@ ${cards}
     document.getElementById("bpp-save-post").onclick = () => {
       commentStore.manualPostData = collectPostForm();
       console.log("%c✅ 帖子信息已保存", "color:#52c41a;");
+    };
+
+    // 📊 保存历史数据
+    document.getElementById("bpp-save-history").onclick = () => {
+      const h = collectHistoryForm();
+      historyConfig.avgComment = h.avgComment;
+      historyConfig.avgLike = h.avgLike;
+      console.log("%c✅ 历史帖子数据已保存（持久化）", "color:#52c41a;");
+    };
+    // 📊 清空历史数据
+    document.getElementById("bpp-clear-history").onclick = () => {
+      historyConfig.avgComment = 200;
+      historyConfig.avgLike = 200;
+      document.getElementById("bpp-avg-cmt").value = "200";
+      document.getElementById("bpp-avg-like").value = "200";
+      console.log("%c✅ 历史帖子数据已清空（已持久化）", "color:#888;");
     };
 
     // 🤖 保存此API（新增或更新）
@@ -1365,7 +1449,16 @@ ${cards}
           _model: pf.model,
         })),
       );
-      const results = await Promise.all(promises);
+      const settled = await Promise.allSettled(promises);
+      const results = settled.map((s) => {
+        if (s.status === "fulfilled") return s.value;
+        // 兜底：万一有未被 .catch 捕获的异常，这里接住
+        return {
+          _error: s.reason?.message || String(s.reason),
+          _pfName: "?",
+          _model: "?",
+        };
+      });
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
       console.log("分析结果: ", results);
 
@@ -1391,7 +1484,7 @@ ${cards}
     Object.assign(btnBox.style, {
       position: "fixed",
       right: "12px",
-      bottom: "80px",
+      bottom: "20px",
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
