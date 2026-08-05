@@ -42,10 +42,22 @@
   function calcScoreFCHI(comment) {
     const likeScore = Math.log2(comment.likes + 2);
     const replyScore = 1.3 * Math.log2(comment.replyCount + 2);
-    const baseScore = likeScore + replyScore;
+    let baseScore = likeScore + replyScore;
+
+    // ✅ 新增：图片权重（小于 upLike）
+    if (comment.images && comment.images.length > 0) {
+      baseScore *= 1.4; // 1.2 < 1.8，且为固定乘数避免与点赞权重叠加过猛
+    }
+
+    // ✅ 新增：文本长度权重（小于 likes）
+    if (comment.content && comment.content.length > 16) {
+      baseScore *= 1.2; // 增量
+    }
+
     let upWeight = 1.0;
     if (comment.upReply) upWeight = 3.0;
     else if (comment.upLike) upWeight = 1.8;
+
     function getLevelScope(l) {
       switch (true) {
         case l < 5:
@@ -62,6 +74,7 @@
           return 0;
       }
     }
+
     const fchi = baseScore * upWeight * getLevelScope(comment.userLevel);
     return Math.round(fchi * 100) / 100;
   }
@@ -194,10 +207,16 @@
     onUpdate: null,
     manualPostData: null,
     aiResult: null,
+    mode3Comments: [], // mode=3 独立存储，最多5条
+    includeMode3: false, // 是否合并到 mode=2 数据中
+    topReplies: [], // mode=3 的 top_replies 置顶评论
+    includeTopReplies: false, // 是否合并置顶评论
 
     mainCount() {
       let c = 0;
       for (const cm of this.comments) if (cm.type === "main") c++;
+      if (this.includeMode3) c += this.mode3Comments.length;
+      if (this.includeTopReplies) c += this.topReplies.length;
       return c;
     },
 
@@ -248,19 +267,80 @@
       return added;
     },
 
+    addMode3Reply(r) {
+      if (!r || !r.content) return;
+      if (this.mode3Comments.length >= 5) return;
+      const rpid = r.rpid_str || r.rpid;
+      if (this.mode3Comments.some((c) => c.rpid === rpid)) return;
+      const main = {
+        type: "main",
+        rpid,
+        user: r.member?.uname || "匿名",
+        userLevel: r.member?.level_info?.current_level || 0,
+        content: r.content.message || "",
+        likes: r.like || 0,
+        replyCount: r.rcount || 0,
+        upLike: r.reply_control?.up_like,
+        upReply: r.reply_control?.up_reply,
+        ipAddress: r.reply_control?.location,
+        time: _formatTime(r.ctime),
+        timestamp: r.ctime,
+        images: r.content.pictures?.map((item) => item.img_src) || [],
+      };
+      main.scope = calcScoreFCHI(main);
+      this.mode3Comments.push(main);
+      if (this.onUpdate) this.onUpdate();
+    },
+
+    addTopReply(r) {
+      if (!r || !r.content) return;
+      const rpid = r.rpid_str || r.rpid;
+      if (this.topReplies.some((c) => c.rpid === rpid)) return;
+      const main = {
+        type: "main",
+        rpid,
+        user: r.member?.uname || "匿名",
+        userLevel: r.member?.level_info?.current_level || 0,
+        content: r.content.message || "",
+        likes: r.like || 0,
+        replyCount: r.rcount || 0,
+        upLike: r.reply_control?.up_like,
+        upReply: r.reply_control?.up_reply,
+        ipAddress: r.reply_control?.location,
+        time: _formatTime(r.ctime),
+        timestamp: r.ctime,
+        images: r.content.pictures?.map((item) => item.img_src) || [],
+      };
+      main.scope = calcScoreFCHI(main);
+      this.topReplies.push(main);
+      if (this.onUpdate) this.onUpdate();
+    },
+
     stats() {
       const mains = this.comments.filter((c) => c.type === "main");
       const subs = this.comments.filter((c) => c.type === "sub");
+      const mode3 = this.includeMode3 ? this.mode3Comments.length : 0;
+      const top = this.includeTopReplies ? this.topReplies.length : 0;
       return {
-        total: this.comments.length,
-        mains: mains.length,
+        total: this.comments.length + mode3 + top,
+        mains: mains.length + mode3 + top,
         subs: subs.length,
       };
     },
 
     toMarkdown() {
-      const mains = this.comments.filter((c) => c.type === "main");
+      let mains = this.comments.filter((c) => c.type === "main");
       const subs = this.comments.filter((c) => c.type === "sub");
+      // mode=3 勾选后合并到主评论列表
+      if (this.includeMode3 && this.mode3Comments.length > 0) {
+        mains = [...mains, ...this.mode3Comments];
+        mains.sort((a, b) => b.scope - a.scope);
+      }
+      // 置顶评论勾选后合并
+      if (this.includeTopReplies && this.topReplies.length > 0) {
+        mains = [...mains, ...this.topReplies];
+        mains.sort((a, b) => b.scope - a.scope);
+      }
       const path = location.pathname;
       const now = _formatPostTime();
       let md = "";
@@ -280,7 +360,7 @@
         if (d.content)
           md += `\n## 帖子内容\n\n### 内容\n\n\`\`\`text\n\n${d.content}\n\n\`\`\`\n`;
         if (d.images && d.images.length > 0)
-          md += `\n### 内容图片链接(可选)\n\n\`\`\`text\n${d.images.join("\n\n")}\n\`\`\`\n`;
+          md += `\n### 内容图片(可选)\n\n${d.images.map((u) => `- ${u}`).join("\n")}\n`;
         md += `\n`;
       }
 
@@ -293,10 +373,12 @@
       sortedMains.forEach((m, idx) => {
         const subsOfThis = subs.filter((s) => s.parentRpid === m.rpid);
         md += `### ${idx + 1}. ${m.user} [🔥${m.likes} 💬${m.replyCount} 📊${m.scope}]\n`;
-        md += `> ${m.time} | IP属地：${m.ipAddress || "未知"}\n\n内容: ${m.content}\n`;
-        if (m.images && m.images.length > 0) md += `图片(可选): ${m.images.join(",")}\n`;
+        md += `> ${m.time} | ${m.ipAddress || "未知"}\n\n内容:\n\n- ${m.content}\n`;
+        if (m.images && m.images.length > 0)
+          md += `\n图片(可选):\n\n${m.images.map((u) => `- ${u}`).join("\n")}\n`;
         md += `\n`;
         if (subsOfThis.length > 0) {
+          md += `子评论:\n\n`;
           subsOfThis.forEach((s) => {
             md += `- ${s.user}: ${s.content}${s.images && s.images.length > 0 ? " 图片(可选): " + s.images.join(",") : ""} (👍${s.likes})\n`;
           });
@@ -324,8 +406,7 @@
       // # 注意
       md += `# 注意\n\n`;
       md += `## 评论格式\n\n\`\`\`md\n`;
-      md += `### 序号1. 用户名 [点赞数量 评论数量 FCHI分数]\n\n> 评论时间 | 用户名IP属地\n\n内容: 评论内容\n图片(可选): http://xxx.png,http://xxx.png\n`;
-      md += `- 用户名: 子评论内容\n- 用户名: 子评论内容\n  ...\n\n---\n\n### 序号2.\n\`\`\`\n\n`;
+      md += `### 序号1. 用户名 [点赞数量 评论数量 FCHI分数]\n\n> 评论时间 | 用户名IP属地\n\n内容:\n\n- 评论内容\n\n图片(可选):\n\n- 图片链接1\n- 图片链接2\n\n子评论\n\n- 用户名1: 子评论内容1\n- 用户名2: 子评论内容2\n  ...\n\n---\n\n### 序号2.\n\`\`\`\n\n`;
       md += `## 表情包\n\n- {'[微笑]'} 帖子和评论区中为B站表情包,对分析也重要\n\n`;
       md += `## 关键词格式\n\n\`\`\`md\n词：对应的多种近义词\n\`\`\`\n\n`;
       md += `## 口号词\n\n- UP和粉丝公认的口号，鼓励打气\n\n`;
@@ -371,7 +452,7 @@
       md += `- 评论默认有 200条,不够200选择全部,超出200选择前200\n\n`;
       md += `#### 评分流程\n`;
       md += `┌─────────────────────────────────────────────────────────────────────────┐\n`;
-      md += `│                   打分流程 V3.4（含多空密度惩罚）                      │\n`;
+      md += `│ 打分流程 V3.4（含多空密度惩罚） │\n`;
       md += `├─────────────────────────────────────────────────────────────────────────┤\n`;
       md += `│  STEP 1: 数据采集                                                     │\n`;
       md += `│  ├── 帖子正文 + 当前点赞/评论量                                       │\n`;
@@ -413,6 +494,9 @@
       md += `- 空洞表情刷屏：无具体论据的[打call][赞]且集中在低等级账号，视为水军或反串，不作为狂热依据。\n`;
       md += `- 楼中楼联动：主评表情积极但楼中楼出现≥3条反讽表情或反驳，以楼中楼共识为准，主评情绪强制降级。\n`;
       md += `- 语义冲突：文本与表情情绪相反时，优先以表情为准；连续重复相同表情≥3个，置信度下调0.3并标记异常\n\n`;
+      md += `### 图片\n\n`;
+      md += `- 内容和帖子中的图片是链接,你需要读取\n`;
+      md += `- 重点关注 晒收益,晒消费的(本条评论 权重 扩大 1.4倍)\n\n`;
       md += `### 关键词出现频率监控\n\n`;
       md += `- 统计上面关键词（及对应近义词）出现的次数\n`;
       md += `- 同一条评论有多次关键词（及对应近义词）出现算作1次\n`;
@@ -543,6 +627,8 @@
       this.comments = [];
       this.seenIds.clear();
       this.aiResult = null;
+      this.mode3Comments = [];
+      this.topReplies = [];
       if (this.onUpdate) this.onUpdate();
     },
   };
@@ -613,6 +699,20 @@
             (j.data?.replies || []).forEach((r) => commentStore.addReply(r));
           } catch (_) {}
           if (_onReplyFetch) _onReplyFetch();
+        });
+      }
+      if (url.includes("/x/v2/reply") && url.includes("mode=3")) {
+        const clone = resp.clone();
+        clone.text().then((body) => {
+          try {
+            const j = JSON.parse(body);
+            (j.data?.replies || []).forEach((r) =>
+              commentStore.addMode3Reply(r),
+            );
+            (j.data?.top_replies || []).forEach((r) =>
+              commentStore.addTopReply(r),
+            );
+          } catch (_) {}
         });
       }
       return resp;
@@ -1650,12 +1750,67 @@ ${cards}
       }
     };
 
-    // 组装盒子：从上到下 设置 → 自动加载 → 进度条 → AI → 复制 → 数量
+    // mode=3 复选框
+    const mode3Cb = document.createElement("label");
+    mode3Cb.title = "勾选后合并 mode=3 的前5条评论到分析数据中";
+    Object.assign(mode3Cb.style, {
+      display: "flex",
+      alignItems: "center",
+      gap: "4px",
+      cursor: "pointer",
+      fontSize: "10px",
+      color: "#666",
+      userSelect: "none",
+    });
+    const mode3Input = document.createElement("input");
+    mode3Input.type = "checkbox";
+    mode3Input.style.cursor = "pointer";
+    mode3Input.onchange = () => {
+      commentStore.includeMode3 = mode3Input.checked;
+      refreshBtn();
+      console.log(
+        "%c[mode=3] %c合并: " +
+          mode3Input.checked +
+          " (已收集 " +
+          commentStore.mode3Comments.length +
+          " 条)",
+        "color:#fa8c16;",
+        "color:#888;",
+      );
+    };
+    mode3Cb.appendChild(mode3Input);
+    mode3Cb.appendChild(document.createTextNode("最热"));
+
+    // 置顶复选框
+    const topCb = document.createElement("label");
+    topCb.title = "勾选后合并 mode=3 的置顶评论到分析数据中";
+    Object.assign(topCb.style, {
+      display: "flex", alignItems: "center", gap: "4px",
+      cursor: "pointer", fontSize: "10px", color: "#666", userSelect: "none",
+    });
+    const topInput = document.createElement("input");
+    topInput.type = "checkbox";
+    topInput.style.cursor = "pointer";
+    topInput.onchange = () => {
+      commentStore.includeTopReplies = topInput.checked;
+      refreshBtn();
+      console.log(
+        "%c[置顶] %c合并: " + topInput.checked + " (已收集 " +
+          commentStore.topReplies.length + " 条)",
+        "color:#fa8c16;", "color:#888;",
+      );
+    };
+    topCb.appendChild(topInput);
+    topCb.appendChild(document.createTextNode("置顶"));
+
+    // 组装盒子：从上到下 设置 → 自动加载 → 进度条 → AI → 复制 → mode3复选框 → 置顶复选框 → 数量
     btnBox.appendChild(setBtn);
     btnBox.appendChild(autoLoadBtn);
     btnBox.appendChild(autoProgress);
     btnBox.appendChild(aiBtn);
     btnBox.appendChild(copyBtn);
+    btnBox.appendChild(mode3Cb);
+    btnBox.appendChild(topCb);
     btnBox.appendChild(countLabel);
     document.body.appendChild(btnBox);
   };
