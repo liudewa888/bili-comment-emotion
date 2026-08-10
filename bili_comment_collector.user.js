@@ -507,11 +507,17 @@
       md += `- 图片链接你要读取统计\n`;
       md += `- 不用统计子评论(最终比例分母不要包含子评论)\n`;
       md += `- 含有表情包的要分析取最终语义\n\n`;
+      md += `### 晒收益占比监控\n\n`;
+      md += `- 包括文本和图片收益,只统计正收益\n`;
+      md += `- 图片链接你要读取统计\n`;
+      md += `- 同一条评论同时有文本和图片收益此算作1次\n`;
+      md += `- 子评论也要统计(最终比例分母要包含子评论)\n\n`;
       md += `# 输出格式\n\n`;
       md += `仅返回以下标准的JSON结构，不包含任何解释性文字、markdown标记或额外说明：\n\n`;
       md += `{\n`;
       md += `"scope": 0~100（出自打分规则）,\n`;
       md += `"core_evidence": "≤400字的核心判定依据，引用最代表性的评论的关键词",\n`;
+      md += `"yield_rate": "晒收益: 28%;",\n`;
       md += `"rate": "看空: 28%; 看多: 36%",\n`;
       md += `"keyword_stats": "氦气:N次; 锂矿:N次; 存储:N次; 商航:N次; AI医疗:N次; 半导体:N次; 智驾:N次；光刻胶:N次"\n`;
       md += `}\n`;
@@ -560,7 +566,7 @@
               {
                 role: "system",
                 content:
-                  '你是一个A股散户心理情绪观察舆情助手。请严格按照JSON格式返回分析结果，不要包含markdown代码块标记。格式：{"scope":0~100,"core_evidence":"≤400字核心判定依据","rate":"看空:N%;看多:N%","keyword_stats":"氦气:N次;..."}',
+                  '你是一个A股散户心理情绪观察舆情助手。请严格按照JSON格式返回分析结果，不要包含markdown代码块标记。格式：{"scope":0~100,"core_evidence":"≤400字核心判定依据","yield_rate":"晒收益:N%","rate":"看空:N%;看多:N%","keyword_stats":"氦气:N次;..."}',
               },
               { role: "user", content: prompt },
             ],
@@ -1232,6 +1238,7 @@
 <div class="bpp-result-conf-bar"><div class="bpp-result-conf-fill" style="width:${scope}%;background:${scColor}"></div></div>
 <div style="font-size:11px;color:#888;margin-top:4px;text-align:right">0~100</div>
 <div class="bpp-result-evidence">${r.core_evidence || "无"}</div>
+<div class="bpp-result-yield" style="font-size:12px;color:#fa8c16;font-weight:600;margin-top:4px;border:1px solid #eee;padding:8px;border-radius:8px">${(r.yield_rate || "").replace(/:\s*/g, ": ")}</div>
 ${(() => { const rt = r.rate || ""; const m = rt.match(/看空[：:]\s*(\d+)%/); const m2 = rt.match(/看多[：:]\s*(\d+)%/); const bear = m ? parseInt(m[1],10) : 0; const bull = m2 ? parseInt(m2[1],10) : 0; const total = bear + bull || 1; return `<div class="bpp-result-rate" style="margin-top:8px;padding:6px 10px;border-radius:8px;background:#fafafa;border:1px solid #eee"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><span style="font-size:12px;font-weight:600;color:#333">多空情绪占比</span><span style="font-size:10px;color:#aaa">${rt}</span></div><div style="display:flex;height:8px;border-radius:4px;overflow:hidden"><div style="width:${(bear/total*100)}%;background:linear-gradient(90deg,#237804,#52c41a);transition:width .3s" title="看空 ${bear}%"></div><div style="width:${(bull/total*100)}%;background:linear-gradient(90deg,#ff4d4f,#ff9966);transition:width .3s" title="看多 ${bull}%"></div></div><div style="display:flex;justify-content:space-between;margin-top:4px;font-size:11px"><span style="color:#52c41a;font-weight:600">看空 ${bear}%</span><span style="color:#ff4d4f;font-weight:600">看多 ${bull}%</span></div></div>`; })()}
 ${kwHtml}</div>`;
     };
